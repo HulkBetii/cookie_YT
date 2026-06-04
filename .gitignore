@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Logs
+logs/
+*.log
+*.txt.bak
+
+# Archive (file gốc GPM, không cần push)
+_archive/
+
+# Credentials / sensitive
+*.pwd
+pass script.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
