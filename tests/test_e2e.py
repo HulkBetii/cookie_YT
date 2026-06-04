@@ -142,7 +142,12 @@ def test_youtube_load():
 
 def test_youtube_search():
     from selenium.webdriver.common.keys import Keys
-    box = driver.find_element(By.NAME, "search_query")
+    # Chờ box clickable (không chỉ present) trước khi send_keys
+    box = WebDriverWait(driver, 15).until(
+        EC.element_to_be_clickable((By.NAME, "search_query"))
+    )
+    driver.execute_script("arguments[0].click();", box)
+    time.sleep(0.4)
     box.clear()
     box.send_keys("偉人の教え")
     box.send_keys(Keys.RETURN)

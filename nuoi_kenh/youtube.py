@@ -577,24 +577,42 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
     """
     Vào YouTube bằng cách search Google thay vì trực tiếp.
     Trả về True nếu thành công, False để fallback về direct URL.
+    Giới hạn page_load_timeout ngắn hơn để không hang trên proxy chậm.
     """
+    t_bat_dau = time.time()
     try:
-        driver.get("https://www.google.com")
-        delay(2, 4)
+        # Timeout ngắn hơn cho Google (proxy Nhật đôi khi rất chậm)
+        driver.set_page_load_timeout(15)
+        try:
+            driver.get("https://www.google.com")
+        except Exception:
+            return False
+        finally:
+            driver.set_page_load_timeout(30)
 
-        # Tìm ô search Google
-        search_box = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.NAME, "q"))
-        )
+        delay(1.5, 3)
+
+        # Tìm ô search Google (clickable, không chỉ present)
+        try:
+            search_box = WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((By.NAME, "q"))
+            )
+        except Exception:
+            return False
+
         hover_element(driver, search_box)
-        delay(0.5, 1.2)
+        delay(0.4, 1.0)
 
-        # Gõ từ khóa + "youtube" với typo correction (8% xác suất gõ sai)
+        # Gõ từ khóa + "youtube" với typo correction
         query = tu_khoa + " youtube"
         go_co_loi_chinh_ta(search_box, query)
-        delay(0.5, 1.5)
+        delay(0.5, 1.2)
         search_box.send_keys(Keys.RETURN)
-        delay(2, 4)
+        delay(2, 3)
+
+        # Kiểm tra tổng thời gian — bail out nếu quá 40s
+        if time.time() - t_bat_dau > 40:
+            return False
 
         # Tìm và click kết quả YouTube đầu tiên
         results = driver.find_elements(By.CSS_SELECTOR, "a[href*='youtube.com']")
@@ -604,17 +622,22 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
                 hover_element(driver, r)
                 delay(0.3, 0.8)
                 driver.execute_script("arguments[0].click();", r)
-                _cho_trang_load(driver, timeout=20)
-                delay(2, 4)
+                _cho_trang_load(driver, timeout=15)
+                delay(1, 3)
                 if "youtube.com" in driver.current_url:
                     log("  🌐 Vào YouTube qua Google Search")
                     return True
 
-        # Fallback: navigate trực tiếp sau khi Google failed
         return False
 
     except Exception:
         return False
+    finally:
+        # Đảm bảo timeout được reset
+        try:
+            driver.set_page_load_timeout(30)
+        except Exception:
+            pass
 
 
 def cold_start(driver, mood: SessionMood):
@@ -911,43 +934,55 @@ def xem_video_lien_quan(driver, search_url) -> bool:
     return False
 
 
+def _focus_search_box(driver, timeout=20):
+    """
+    Chờ search box INTERACTABLE (không chỉ present), rồi JS-click để focus.
+    Trả về element hoặc None.
+    """
+    try:
+        # element_to_be_clickable đảm bảo box visible + enabled
+        o_tim = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.NAME, "search_query"))
+        )
+        # JS click thay vì .click() để tránh ElementClickInterceptedException
+        driver.execute_script("arguments[0].click();", o_tim)
+        time.sleep(random.uniform(0.3, 0.7))
+        o_tim.clear()
+        return o_tim
+    except Exception:
+        return None
+
+
 def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
     """Tìm kiếm trên YouTube, có thể tìm từ khóa phụ trước."""
     if random.random() < 0.35 and TU_KHOA_LIEN_QUAN:
         tk_phu = random.choice(TU_KHOA_LIEN_QUAN)
         log(f"  🔍 Tìm phụ trước: '{tk_phu}'")
         try:
-            o_tim = WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.NAME, "search_query"))
-            )
-            o_tim.clear()
-            delay(0.3, 0.8)
-            go_co_loi_chinh_ta(o_tim, tk_phu)
-            delay(0.5, 1.5)
-            o_tim.send_keys(Keys.RETURN)
-            delay(2, 4)
-            cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
-            delay(1, 3)
+            o_tim = _focus_search_box(driver, timeout=15)
+            if o_tim:
+                go_co_loi_chinh_ta(o_tim, tk_phu)
+                delay(0.5, 1.5)
+                o_tim.send_keys(Keys.RETURN)
+                delay(2, 4)
+                cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
+                delay(1, 3)
         except Exception:
             pass
 
+    # Tìm kiếm từ khóa chính
+    o_tim = _focus_search_box(driver, timeout=20)
+    if o_tim is None:
+        log("  ⚠️ YouTube search box không interactable (proxy chậm/chết)")
+        return False
     try:
-        o_tim = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.NAME, "search_query"))
-        )
         hover_element(driver, o_tim)
-        o_tim.click()
-        delay(0.3, 0.8)
-        o_tim.clear()
         delay(0.2, 0.5)
         go_co_loi_chinh_ta(o_tim, tu_khoa)
         delay(0.5, 1.5)
         o_tim.send_keys(Keys.RETURN)
         delay(2, 5)
         return True
-    except TimeoutException:
-        log("  ⚠️ YouTube không load được (proxy chậm/chết)")
-        return False
     except Exception as e:
         log(f"  ⚠️ Không tìm kiếm được: {str(e)[:60]}")
         return False
