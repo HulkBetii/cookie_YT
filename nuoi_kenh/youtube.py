@@ -934,9 +934,10 @@ def xem_video_lien_quan(driver, search_url) -> bool:
     return False
 
 
-def _focus_search_box(driver, timeout=20):
+def _focus_search_box(driver, timeout=30):
     """
     Chờ search box INTERACTABLE (không chỉ present), rồi JS-click để focus.
+    Timeout 30s để đủ cho proxy Nhật chậm load YouTube homepage.
     Trả về element hoặc None.
     """
     try:
@@ -1002,16 +1003,14 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
     if random.random() < 0.25:
         entry_ok = vao_youtube_qua_google(driver, tu_khoa)
 
-    if not entry_ok:
-        try:
-            driver.get("https://www.youtube.com")
-            delay(3, 6)
-        except Exception as e:
-            log(f"  ❌ Không vào YouTube được: {str(e)[:60]}")
-            return 0
-    else:
-        # Google entry cũng cần thời gian ổn định trước cold_start
-        delay(2, 4)
+    # Luôn về homepage để đảm bảo trạng thái nhất quán trước cold_start.
+    # Google entry có thể land ở /results hoặc /watch — search box render khác.
+    try:
+        driver.get("https://www.youtube.com")
+        delay(3, 5) if not entry_ok else delay(2, 4)
+    except Exception as e:
+        log(f"  ❌ Không vào YouTube được: {str(e)[:60]}")
+        return 0
 
     try:
         cur = driver.current_url
