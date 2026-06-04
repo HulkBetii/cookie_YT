@@ -127,22 +127,86 @@ def cdp_scroll(driver, delta_y: int):
         driver.execute_script(f"window.scrollBy(0, {delta_y});")
 
 
+# ── Bézier mouse movement ──────────────────────────────────────────
+
+_cursor = [400, 300]   # Module-level cursor position tracking
+
+
+def _bezier_pts(p0, cp1, cp2, p3, n: int) -> list:
+    """n+1 điểm trên đường cong Bézier bậc 3."""
+    pts = []
+    for i in range(n + 1):
+        t = i / n; u = 1 - t
+        x = u**3*p0[0] + 3*u**2*t*cp1[0] + 3*u*t**2*cp2[0] + t**3*p3[0]
+        y = u**3*p0[1] + 3*u**2*t*cp1[1] + 3*u*t**2*cp2[1] + t**3*p3[1]
+        pts.append((int(x), int(y)))
+    return pts
+
+
+def bezier_mouse_move(driver, tx: int, ty: int):
+    """
+    Di chuột theo Bézier curve từ vị trí hiện tại đến (tx, ty).
+    - Cubic Bézier với 2 control point ngẫu nhiên
+    - Slight overshoot rồi quay về target (giống người thật)
+    - Ease-in-out: chậm đầu và cuối, nhanh giữa
+    """
+    x0, y0 = _cursor
+    # Overshoot nhẹ để tự nhiên hơn
+    ox = tx + random.randint(-12, 12)
+    oy = ty + random.randint(-10, 10)
+    dx, dy = tx - x0, ty - y0
+    # Control points tạo đường cong lệch
+    cp1 = (
+        x0 + dx * random.uniform(0.2, 0.4) + random.randint(-40, 40),
+        y0 + dy * random.uniform(0.1, 0.3) + random.randint(-35, 35),
+    )
+    cp2 = (
+        x0 + dx * random.uniform(0.6, 0.8) + random.randint(-40, 40),
+        y0 + dy * random.uniform(0.7, 0.9) + random.randint(-35, 35),
+    )
+    pts = _bezier_pts((x0, y0), cp1, cp2, (ox, oy), random.randint(10, 20))
+    # Điểm cuối: sửa về đúng target
+    pts.append((tx + random.randint(-2, 2), ty + random.randint(-2, 2)))
+
+    for i, (px, py) in enumerate(pts):
+        try:
+            driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+                "type": "mouseMoved", "x": max(0, px), "y": max(0, py),
+                "modifiers": 0, "buttons": 0, "button": "none",
+            })
+            # Ease-in-out: 4t(1-t) = 0 ở đầu/cuối, 1 ở giữa
+            t = i / len(pts)
+            base = 0.012 + 0.025 * (1 - 4 * t * (1 - t))
+            time.sleep(random.uniform(base * 0.8, base * 1.4))
+        except Exception:
+            break
+
+    _cursor[0], _cursor[1] = tx, ty
+
+
 def cdp_click(driver, element):
-    """Click element bằng CDP native event."""
+    """
+    Click element: Bézier mouse move → mousePressed → mouseReleased.
+    Tự nhiên hơn single-event click vì có full mouse path.
+    """
     try:
         rect = driver.execute_script("""
             var r = arguments[0].getBoundingClientRect();
             return {x: r.left + r.width/2, y: r.top + r.height/2};
         """, element)
-        x = rect["x"] + random.randint(-3, 3)
-        y = rect["y"] + random.randint(-3, 3)
-        for evt in ("mouseMoved", "mousePressed", "mouseReleased"):
-            params = {
-                "type": evt, "x": x, "y": y, "modifiers": 0, "buttons": 0,
-                "button": "none" if evt == "mouseMoved" else "left",
-                "clickCount": 0 if evt == "mouseMoved" else 1,
-            }
-            driver.execute_cdp_cmd("Input.dispatchMouseEvent", params)
-            time.sleep(random.uniform(0.03, 0.12))
+        x = int(rect["x"]) + random.randint(-3, 3)
+        y = int(rect["y"]) + random.randint(-3, 3)
+
+        # Di chuột đến target trước (Bézier)
+        bezier_mouse_move(driver, x, y)
+
+        # Nhấn và thả
+        for evt in ("mousePressed", "mouseReleased"):
+            driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+                "type": evt, "x": x, "y": y, "modifiers": 0,
+                "buttons": 1 if evt == "mousePressed" else 0,
+                "button": "left", "clickCount": 1,
+            })
+            time.sleep(random.uniform(0.04, 0.14))
     except Exception:
         driver.execute_script("arguments[0].click();", element)

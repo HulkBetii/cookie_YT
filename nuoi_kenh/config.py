@@ -9,12 +9,16 @@ GPM_API_URL     = "http://127.0.0.1:19995"
 GPM_BROWSER_DIR = r"C:\GPM\GPMLogin\gpm_browser"
 
 # ── YouTube ──────────────────────────────────────────────────────
-SO_VIDEO        = 5       # Số video xem mỗi profile
+SO_VIDEO        = 5       # Số video mặc định (tham khảo)
+SO_VIDEO_MIN    = 3       # Min video mỗi session (random weighted)
+SO_VIDEO_MAX    = 7       # Max video mỗi session
 MIN_GIAY_XEM    = 60      # Thời gian xem tối thiểu (giây)
 MAX_GIAY_XEM    = 120     # Thời gian xem tối đa (giây)
 
 # ── Tin tức ──────────────────────────────────────────────────────
-SO_TIN_DOC      = 3       # Số bài báo đọc mỗi profile
+SO_TIN_DOC      = 3       # Số bài báo mặc định (tham khảo)
+SO_TIN_DOC_MIN  = 0       # Min bài báo mỗi session
+SO_TIN_DOC_MAX  = 4       # Max bài báo mỗi session
 SU_DUNG_GOOGLE_NEWS = True
 
 NEWS_SITES = [
@@ -27,9 +31,18 @@ NEWS_SITES = [
 
 # ── Vòng lặp ─────────────────────────────────────────────────────
 SO_VONG_LAP         = 0     # 0 = chạy mãi; số > 0 = chạy N vòng
-NGHI_GIUA_VONG_MIN  = 300   # Nghỉ tối thiểu giữa vòng (giây) — 5 phút
-NGHI_GIUA_VONG_MAX  = 900   # Nghỉ tối đa giữa vòng (giây) — 15 phút
+NGHI_GIUA_VONG_MIN  = 300   # Nghỉ bình thường min (giây) — 5 phút
+NGHI_GIUA_VONG_MAX  = 900   # Nghỉ bình thường max (giây) — 15 phút
 TRON_PROFILES       = True  # Xáo thứ tự profile mỗi vòng
+
+# ── Session timing variation ─────────────────────────────────────
+# Người thật đôi khi nghỉ dài 2-4h, đôi khi xem liên tục chỉ nghỉ 1-3 phút
+NGHI_DAI_XAC_SUAT  = 0.08   # 8%  → nghỉ dài (2-4 tiếng)
+NGHI_NGAN_XAC_SUAT = 0.15   # 15% → nghỉ rất ngắn (1-3 phút)
+NGHI_DAI_MIN       = 7200   # 2 tiếng
+NGHI_DAI_MAX       = 14400  # 4 tiếng
+NGHI_NGAN_MIN      = 60
+NGHI_NGAN_MAX      = 180
 
 # ── Từ khóa xoay vòng ────────────────────────────────────────────
 DANH_SACH_TU_KHOA = [

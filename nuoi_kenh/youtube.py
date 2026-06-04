@@ -11,12 +11,13 @@ from selenium.common.exceptions import (
     StaleElementReferenceException, TimeoutException,
 )
 
-from .config import SO_VIDEO, MIN_GIAY_XEM, MAX_GIAY_XEM, TU_KHOA_LIEN_QUAN
+from .config import TU_KHOA_LIEN_QUAN
 from .logger import log
 from .selenium_utils import _cho_trang_load
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element, go_co_loi_chinh_ta,
+    SessionMood,
 )
 from .cdp import cdp_click
 from .tab_guard import don_dep_tab_la, watchdog_tabs
@@ -142,6 +143,61 @@ def _cho_ket_qua_tim_kiem(driver, timeout=25) -> list:
     return []
 
 
+def cold_start(driver, mood: SessionMood):
+    """
+    Warm-up trước khi bắt đầu task — giả lập hành vi ngay khi mở browser.
+    Người thật không đi thẳng vào việc: họ kiểm tra notification,
+    lướt lịch sử, hoặc gõ thử rồi xóa.
+    """
+    # Delay ngẫu nhiên ban đầu (nhìn vào màn hình trước khi làm gì)
+    time.sleep(random.uniform(4, 18))
+
+    roll = random.random()
+    if roll < 0.28:
+        # Hover notification bell như đang kiểm tra thông báo
+        try:
+            bell = driver.find_element(By.CSS_SELECTOR,
+                "#notification-button, button[aria-label*='otification']")
+            hover_element(driver, bell)
+            delay(1.5, 4)
+        except Exception:
+            pass
+
+    elif roll < 0.50:
+        # Lướt lịch sử xem trước
+        try:
+            driver.get("https://www.youtube.com/feed/history")
+            delay(3, 8)
+            cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
+            driver.get("https://www.youtube.com")
+            delay(2, 4)
+        except Exception:
+            pass
+
+    elif roll < 0.65:
+        # Gõ vài ký tự vào ô tìm kiếm rồi xóa (đang suy nghĩ)
+        try:
+            box = WebDriverWait(driver, 8).until(
+                EC.presence_of_element_located((By.NAME, "search_query"))
+            )
+            hover_element(driver, box)
+            delay(0.8, 2)
+            partial = random.choice(TU_KHOA_LIEN_QUAN)
+            n = random.randint(2, max(2, len(partial) // 2 + 1))
+            for ch in partial[:n]:
+                box.send_keys(ch)
+                time.sleep(random.uniform(0.08, 0.25))
+            delay(1.5, 4)
+            box.clear()
+        except Exception:
+            pass
+
+    else:
+        # Chỉ ngồi idle rồi cuộn nhẹ
+        delay(2, 7)
+        cuon_tu_nhien(driver, "xuong", random.randint(1, 3))
+
+
 def luot_trang_chu_youtube(driver):
     """Lướt trang chủ YouTube trước khi tìm kiếm."""
     log("  🏠 Lướt trang chủ YouTube...")
@@ -159,14 +215,29 @@ def luot_trang_chu_youtube(driver):
         pass
 
 
-def tuong_tac_video_youtube(driver, giay_xem: int, handles_cho_phep: set) -> bool:
-    """Xem video với tương tác người thật + watchdog. Trả về True nếu crash."""
+def tuong_tac_video_youtube(driver, giay_xem: int,
+                             handles_cho_phep: set, mood: SessionMood) -> bool:
+    """
+    Xem video với tương tác người thật + watchdog.
+    mood quyết định xác suất mỗi hành động — không còn hardcode.
+    Trả về True nếu crash.
+    """
     tab_video = driver.current_window_handle
     chunk     = max(8, giay_xem // 7)
     dem       = 0
     crash     = False
     MAX_GIAY  = giay_xem * 3 + 90
     t_bat_dau = time.time()
+
+    # Cumulative thresholds từ mood (thay hardcode)
+    t_pause    = mood.pause_prob
+    t_seek_fwd = t_pause    + mood.seek_fwd_prob
+    t_seek_bwd = t_seek_fwd + mood.seek_bwd_prob
+    t_comment  = t_seek_bwd + mood.comment_prob
+    t_like     = t_comment  + mood.like_prob
+    t_vol      = t_like     + mood.vol_prob
+    t_related  = t_vol      + mood.related_prob
+    # hd >= t_related → cuộn random
 
     try:
         player = driver.find_element(By.CSS_SELECTOR, "#movie_player, .html5-video-player")
@@ -202,25 +273,34 @@ def tuong_tac_video_youtube(driver, giay_xem: int, handles_cho_phep: set) -> boo
             crash = True
             break
 
+        # Mood passive: hay bỏ qua cả chunk — xem im lặng
+        if random.random() < mood.chunk_skip_prob:
+            nghi_ngau_nhien(ty_le=0.05)
+            continue
+
         hd = random.random()
         try:
             body = driver.find_element(By.TAG_NAME, "body")
-            if hd < 0.20:
+
+            if hd < t_pause:
                 body.send_keys("k")
                 time.sleep(random.uniform(1.5, 4.0))
                 body.send_keys("k")
                 log("    ⏸ Tạm dừng rồi tiếp tục")
-            elif hd < 0.35:
+
+            elif hd < t_seek_fwd:
                 lan = random.randint(1, 3)
                 for _ in range(lan):
                     body.send_keys(Keys.ARROW_RIGHT)
                     time.sleep(0.3)
                 log(f"    ⏩ Tua +{lan*5}s")
-            elif hd < 0.45:
+
+            elif hd < t_seek_bwd:
                 body.send_keys(Keys.ARROW_LEFT)
                 time.sleep(0.3)
                 log("    ⏪ Tua -5s")
-            elif hd < 0.55:
+
+            elif hd < t_comment:
                 cuon_tu_nhien(driver, "xuong", random.randint(2, 5))
                 delay(2, 6)
                 try:
@@ -231,7 +311,8 @@ def tuong_tac_video_youtube(driver, giay_xem: int, handles_cho_phep: set) -> boo
                 except Exception:
                     pass
                 cuon_tu_nhien(driver, "len", random.randint(2, 4))
-            elif hd < 0.62:
+
+            elif hd < t_like:
                 try:
                     like_btn = driver.find_element(
                         By.CSS_SELECTOR,
@@ -239,19 +320,21 @@ def tuong_tac_video_youtube(driver, giay_xem: int, handles_cho_phep: set) -> boo
                     )
                     hover_element(driver, like_btn)
                     delay(0.5, 1.5)
-                    if random.random() < 0.30:
+                    if random.random() < mood.like_click_prob:
                         driver.execute_script("arguments[0].click();", like_btn)
                         log("    👍 Đã Like video")
                 except Exception:
                     pass
-            elif hd < 0.68:
+
+            elif hd < t_vol:
                 try:
                     vol = driver.find_element(By.CSS_SELECTOR, ".ytp-volume-panel, .volume-slider")
                     hover_element(driver, vol)
                     delay(0.5, 1.0)
                 except Exception:
                     pass
-            elif hd < 0.73:
+
+            elif hd < t_related:
                 try:
                     related = driver.find_elements(By.CSS_SELECTOR, "ytd-compact-video-renderer")
                     if related:
@@ -259,8 +342,10 @@ def tuong_tac_video_youtube(driver, giay_xem: int, handles_cho_phep: set) -> boo
                         delay(1, 2)
                 except Exception:
                     pass
+
             else:
                 driver.execute_script(f"window.scrollBy(0, {random.randint(-100, 200)});")
+
         except Exception:
             pass
 
@@ -336,9 +421,9 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
 
 
 def xem_youtube(driver, tu_khoa: str, so_video: int,
-                min_giay: int, max_giay: int) -> int:
-    """Main YouTube flow: browse → search → watch videos."""
-    log(f"  🎬 YouTube | '{tu_khoa}' | {so_video} video | {min_giay}-{max_giay}s/video")
+                min_giay: int, max_giay: int, mood: SessionMood) -> int:
+    """Main YouTube flow: cold start → browse → search → watch videos."""
+    log(f"  🎬 YouTube | '{tu_khoa}' | {so_video} video | {min_giay}-{max_giay}s/video | mood={mood.name}")
 
     if not kiem_tra_ket_noi(driver):
         log("  ❌ Browser đã đóng, bỏ qua YouTube")
@@ -358,6 +443,9 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
     except Exception:
         log("  ❌ Browser crash ngay sau khi vào YouTube")
         return 0
+
+    # Cold start — warm-up behavior trước khi bắt đầu task
+    cold_start(driver, mood)
 
     handles_yt = set(driver.window_handles)
     luot_trang_chu_youtube(driver)
@@ -429,9 +517,15 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
                     break
 
             giay = random.randint(min_giay, max_giay)
-            log(f"  ▶  [{da_xem+1}/{so_video}] '{tieu_de}' — {giay}s")
+            # Early exit: mood quyết định thoát sớm hay xem đủ
+            if random.random() < mood.early_exit_prob:
+                lo, hi = mood.early_exit_ratio
+                giay = max(15, int(giay * random.uniform(lo, hi)))
+                log(f"  ▶  [{da_xem+1}/{so_video}] '{tieu_de}' — {giay}s ⏩early")
+            else:
+                log(f"  ▶  [{da_xem+1}/{so_video}] '{tieu_de}' — {giay}s")
 
-            crash = tuong_tac_video_youtube(driver, giay, handles_yt)
+            crash = tuong_tac_video_youtube(driver, giay, handles_yt, mood)
             if crash:
                 break
 

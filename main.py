@@ -12,7 +12,10 @@ sys.stderr.reconfigure(encoding="utf-8")
 
 from nuoi_kenh.config import (
     SO_VIDEO, MIN_GIAY_XEM, MAX_GIAY_XEM, SO_TIN_DOC,
+    SO_VIDEO_MIN, SO_VIDEO_MAX, SO_TIN_DOC_MIN, SO_TIN_DOC_MAX,
     SO_VONG_LAP, NGHI_GIUA_VONG_MIN, NGHI_GIUA_VONG_MAX,
+    NGHI_DAI_XAC_SUAT, NGHI_NGAN_XAC_SUAT,
+    NGHI_DAI_MIN, NGHI_DAI_MAX, NGHI_NGAN_MIN, NGHI_NGAN_MAX,
     TRON_PROFILES, DANH_SACH_TU_KHOA, TU_DONG_DONG_POPUP,
     KIEM_TRA_PROXY, THU_LAI_KHI_LOI, LOG_FILE, GPM_BROWSER_DIR,
 )
@@ -22,7 +25,7 @@ from nuoi_kenh.gpm_api import (
     mo_profile_gpm, dong_profile_gpm, kiem_tra_proxy_nhanh,
 )
 from nuoi_kenh.cdp import cdp_setup
-from nuoi_kenh.human_behavior import delay
+from nuoi_kenh.human_behavior import delay, draw_session_mood
 from nuoi_kenh.news import (
     dong_popup_tu_dong, xu_ly_yeu_cau_dang_nhap, doc_bao,
 )
@@ -65,8 +68,22 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
     proxy_ip = (profile.get("proxy") or "").split(":")[0] or "no proxy"
     ket_qua  = {"ok": False, "video": 0, "bai": 0, "ly_do": ""}
 
+    # ── Draw session personality (1 lần/profile) ──────────────────
+    mood = draw_session_mood()
+
+    # ── Dynamic video/article count (weighted random) ─────────────
+    so_video_session = random.choices(
+        range(SO_VIDEO_MIN, SO_VIDEO_MAX + 1),
+        weights=[10, 20, 30, 25, 15]   # weight về phía 4-5
+    )[0]
+    so_tin_session = random.choices(
+        range(SO_TIN_DOC_MIN, SO_TIN_DOC_MAX + 1),
+        weights=[10, 20, 35, 25, 10]
+    )[0]
+
     log(f"\n{'='*55}")
     log(f"🚀  Profile: {name}  |  Proxy: {proxy_ip}")
+    log(f"    mood={mood.name} | video={so_video_session} | bài={so_tin_session}")
     log(f"{'='*55}")
 
     dong_profile_gpm(pid)
@@ -100,7 +117,10 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
             ket_qua["ly_do"] = "not_logged_in"
             return ket_qua
 
-        so_video_xem = xem_youtube(driver, tu_khoa, SO_VIDEO, MIN_GIAY_XEM, MAX_GIAY_XEM)
+        # Truyền mood + dynamic count vào xem_youtube
+        so_video_xem = xem_youtube(
+            driver, tu_khoa, so_video_session, MIN_GIAY_XEM, MAX_GIAY_XEM, mood
+        )
         ket_qua["video"] = so_video_xem
 
         if TU_DONG_DONG_POPUP:
@@ -110,7 +130,7 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
         log(f"  ⏸ Nghỉ {nghi}s trước khi đọc báo...")
         time.sleep(nghi)
 
-        so_bai_doc = doc_bao(driver, SO_TIN_DOC) or 0
+        so_bai_doc = doc_bao(driver, so_tin_session) or 0
         ket_qua["bai"] = so_bai_doc
 
         ket_qua["ok"] = True
@@ -223,9 +243,22 @@ def main():
         if SO_VONG_LAP > 0 and vong >= SO_VONG_LAP:
             break
 
-        nghi_vong = random.randint(NGHI_GIUA_VONG_MIN, NGHI_GIUA_VONG_MAX)
-        phut = nghi_vong // 60
-        log(f"\n⏸  Nghỉ {phut}p {nghi_vong%60}s trước vòng {vong+1}...\n")
+        # Session timing variation — người thật không nghỉ đều đặn
+        t = random.random()
+        if t < NGHI_DAI_XAC_SUAT:
+            # 8%: nghỉ dài 2-4 tiếng (đi ngủ / đi làm việc khác)
+            nghi_vong = random.randint(NGHI_DAI_MIN, NGHI_DAI_MAX)
+            h = nghi_vong // 3600; m = (nghi_vong % 3600) // 60
+            log(f"\n💤 Nghỉ dài {h}h {m}p trước vòng {vong+1}...\n")
+        elif t < NGHI_DAI_XAC_SUAT + NGHI_NGAN_XAC_SUAT:
+            # 15%: nghỉ rất ngắn 1-3 phút (xem liên tục)
+            nghi_vong = random.randint(NGHI_NGAN_MIN, NGHI_NGAN_MAX)
+            log(f"\n⚡ Nghỉ ngắn {nghi_vong}s trước vòng {vong+1}...\n")
+        else:
+            # 77%: nghỉ bình thường 5-15 phút
+            nghi_vong = random.randint(NGHI_GIUA_VONG_MIN, NGHI_GIUA_VONG_MAX)
+            phut = nghi_vong // 60
+            log(f"\n⏸  Nghỉ {phut}p {nghi_vong%60}s trước vòng {vong+1}...\n")
         time.sleep(nghi_vong)
 
     log("\n" + "█" * 55)
