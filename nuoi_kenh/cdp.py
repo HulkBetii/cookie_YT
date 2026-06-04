@@ -96,6 +96,8 @@ window.chrome = window.chrome || {runtime: {}};
 
 def cdp_setup(driver):
     """Block ads + inject anti-detect + YT ad-skip script."""
+    # Reset cursor state — mỗi profile là browser mới, vị trí chuột về 0
+    _cursor[0], _cursor[1] = 400, 300
     try:
         driver.execute_cdp_cmd("Network.enable", {})
         driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": _CDP_BLOCKED})

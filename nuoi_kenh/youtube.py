@@ -408,7 +408,8 @@ def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
         delay(2, 4)
 
         channel_url = driver.current_url
-        if "youtube.com/@" not in channel_url and "/channel/" not in channel_url:
+        # Chấp nhận cả 3 format: /@handle, /channel/ID, /user/name (legacy)
+        if not any(p in channel_url for p in ("youtube.com/@", "/channel/", "/user/")):
             return False
 
         log(f"  🔗 Tham kênh YouTube: {channel_url[:60]}")
@@ -516,6 +517,11 @@ def mo_thong_bao(driver):
                 driver.back()
                 _cho_trang_load(driver, timeout=10)
                 delay(1, 3)
+                # Đảm bảo trở về YouTube sau back() — tránh SPA navigation không đúng
+                if "youtube.com" not in driver.current_url:
+                    driver.get("https://www.youtube.com")
+                    _cho_trang_load(driver, timeout=15)
+                    delay(2, 3)
                 return
         except Exception:
             pass
@@ -583,15 +589,9 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
         hover_element(driver, search_box)
         delay(0.5, 1.2)
 
-        # Gõ từ khóa + "youtube" (kiểu tìm kiếm tự nhiên)
+        # Gõ từ khóa + "youtube" với typo correction (8% xác suất gõ sai)
         query = tu_khoa + " youtube"
-        go_co_loi_chinh_ta = lambda el, text: [
-            (el.send_keys(ch), time.sleep(random.uniform(0.05, 0.20)))
-            for ch in text
-        ]
-        for ch in query:
-            search_box.send_keys(ch)
-            time.sleep(random.uniform(0.05, 0.18))
+        go_co_loi_chinh_ta(search_box, query)
         delay(0.5, 1.5)
         search_box.send_keys(Keys.RETURN)
         delay(2, 4)
@@ -836,36 +836,52 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
 
         nghi_ngau_nhien(ty_le=0.1)
 
-        # ── Hành vi một lần/video (check độc lập, không exclusive) ──
-        try:
-            if not _quality_changed and random.random() < mood.quality_change_prob:
+        # ── Hành vi một lần/video (check ĐỘC LẬP — dùng if, KHÔNG elif) ──
+        # Mỗi hành vi có xác suất riêng, có thể xảy ra cùng lúc trong 1 video.
+        if not _quality_changed and random.random() < mood.quality_change_prob:
+            try:
                 doi_chat_luong_video(driver)
                 _quality_changed = True
+            except Exception:
+                pass
 
-            elif not _subtitle_toggled and random.random() < mood.subtitle_prob:
+        if not _subtitle_toggled and random.random() < mood.subtitle_prob:
+            try:
                 bat_tat_phu_de(driver)
                 _subtitle_toggled = True
+            except Exception:
+                pass
 
-            elif not _speed_changed and random.random() < mood.speed_change_prob:
+        if not _speed_changed and random.random() < mood.speed_change_prob:
+            try:
                 thay_toc_do_phat(driver)
                 _speed_changed = True
+            except Exception:
+                pass
 
-            elif not _fullscreened and random.random() < mood.fullscreen_prob:
+        if not _fullscreened and random.random() < mood.fullscreen_prob:
+            try:
                 fullscreen_va_thoat(driver)
                 _fullscreened = True
+            except Exception:
+                pass
 
-            elif not _theater and random.random() < mood.theater_prob:
+        if not _theater and random.random() < mood.theater_prob:
+            try:
                 body = driver.find_element(By.TAG_NAME, "body")
                 body.send_keys("t")   # theater mode
                 time.sleep(random.uniform(8, 25))
                 body.send_keys("t")   # exit theater
                 _theater = True
+            except Exception:
+                pass
 
-            elif not _desc_expanded and random.random() < mood.desc_expand_prob:
+        if not _desc_expanded and random.random() < mood.desc_expand_prob:
+            try:
                 doc_mo_ta_video(driver)
                 _desc_expanded = True
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         watchdog_tabs(driver, handles_cho_phep, tab_video)
 
@@ -958,6 +974,9 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
         except Exception as e:
             log(f"  ❌ Không vào YouTube được: {str(e)[:60]}")
             return 0
+    else:
+        # Google entry cũng cần thời gian ổn định trước cold_start
+        delay(2, 4)
 
     try:
         cur = driver.current_url
