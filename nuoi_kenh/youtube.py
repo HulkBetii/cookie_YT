@@ -954,8 +954,27 @@ def _focus_search_box(driver, timeout=30):
         return None
 
 
+def _clear_overlays(driver):
+    """
+    Xóa mọi popup/overlay đang block search box trước khi tìm kiếm.
+    Gọi ngay trước _focus_search_box để đảm bảo không bị chặn.
+    """
+    # Nhập Escape để đóng notification panel, menu, autocomplete
+    try:
+        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+        time.sleep(0.3)
+    except Exception:
+        pass
+    # Dismiss popup cookie/consent nếu còn
+    from .news import dong_popup_tu_dong
+    dong_popup_tu_dong(driver, lan_thu=1)
+
+
 def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
     """Tìm kiếm trên YouTube, có thể tìm từ khóa phụ trước."""
+    # Xóa overlay trước khi tìm kiếm (notification panel, consent popup, menu)
+    _clear_overlays(driver)
+
     if random.random() < 0.35 and TU_KHOA_LIEN_QUAN:
         tk_phu = random.choice(TU_KHOA_LIEN_QUAN)
         log(f"  🔍 Tìm phụ trước: '{tk_phu}'")
