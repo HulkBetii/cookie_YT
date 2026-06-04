@@ -143,6 +143,480 @@ def _cho_ket_qua_tim_kiem(driver, timeout=25) -> list:
     return []
 
 
+# ════════════════════════════════════════════════════════════════
+#  YOUTUBE — TÍNH NĂNG PLAYER & CHANNEL
+# ════════════════════════════════════════════════════════════════
+
+def doi_chat_luong_video(driver):
+    """Đổi chất lượng video sang 360p/480p qua settings menu."""
+    try:
+        # Mở settings menu
+        settings_btn = driver.find_element(By.CSS_SELECTOR, ".ytp-settings-button")
+        hover_element(driver, settings_btn)
+        driver.execute_script("arguments[0].click();", settings_btn)
+        time.sleep(random.uniform(0.8, 1.5))
+
+        # Click Quality
+        quality_items = driver.find_elements(
+            By.CSS_SELECTOR, ".ytp-menuitem, .ytp-panel-menu .ytp-menuitem"
+        )
+        for item in quality_items:
+            txt = (item.text or "").lower()
+            if "quality" in txt or "chất lượng" in txt or "画質" in txt:
+                driver.execute_script("arguments[0].click();", item)
+                time.sleep(random.uniform(0.5, 1.0))
+                break
+
+        # Chọn quality thấp hơn (360p hoặc 480p)
+        options = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem, .ytp-quality-menu .ytp-menuitem")
+        targets = ["480", "360", "240"]
+        for target in targets:
+            for opt in options:
+                if target in (opt.text or ""):
+                    driver.execute_script("arguments[0].click();", opt)
+                    log(f"    🎥 Đổi chất lượng → {target}p")
+                    time.sleep(random.uniform(1, 3))
+                    return
+    except Exception:
+        pass
+    # Close menu nếu vẫn mở
+    try:
+        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+    except Exception:
+        pass
+
+
+def thay_toc_do_phat(driver):
+    """Đổi tốc độ phát video 1.25× hoặc 1.5×, sau đó đặt lại Normal."""
+    try:
+        settings_btn = driver.find_element(By.CSS_SELECTOR, ".ytp-settings-button")
+        hover_element(driver, settings_btn)
+        driver.execute_script("arguments[0].click();", settings_btn)
+        time.sleep(random.uniform(0.8, 1.5))
+
+        # Click "Playback speed"
+        items = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
+        for item in items:
+            txt = (item.text or "").lower()
+            if "speed" in txt or "tốc độ" in txt or "再生速度" in txt:
+                driver.execute_script("arguments[0].click();", item)
+                time.sleep(random.uniform(0.5, 1.0))
+                break
+
+        # Chọn tốc độ ngẫu nhiên
+        target_speed = random.choice(["1.25", "1.5", "0.75"])
+        options = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
+        for opt in options:
+            if target_speed in (opt.text or ""):
+                driver.execute_script("arguments[0].click();", opt)
+                log(f"    ⚡ Tốc độ {target_speed}×")
+                time.sleep(random.uniform(10, 30))
+                break
+
+        # Đặt lại Normal
+        settings_btn = driver.find_element(By.CSS_SELECTOR, ".ytp-settings-button")
+        driver.execute_script("arguments[0].click();", settings_btn)
+        time.sleep(0.8)
+        items = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
+        for item in items:
+            txt = (item.text or "").lower()
+            if "speed" in txt or "tốc độ" in txt or "再生速度" in txt:
+                driver.execute_script("arguments[0].click();", item)
+                time.sleep(0.5)
+                break
+        for opt in driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem"):
+            if "Normal" in (opt.text or "") or "1×" in (opt.text or "") or "普通" in (opt.text or ""):
+                driver.execute_script("arguments[0].click();", opt)
+                break
+    except Exception:
+        try:
+            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+        except Exception:
+            pass
+
+
+def bat_tat_phu_de(driver):
+    """Bật/tắt CC/Subtitles bằng phím 'c'."""
+    try:
+        body = driver.find_element(By.TAG_NAME, "body")
+        body.send_keys("c")
+        log("    📝 Bật CC/Subtitles")
+        time.sleep(random.uniform(3, 8))
+        # 50% xác suất tắt lại, 50% để bật
+        if random.random() < 0.50:
+            body.send_keys("c")
+            log("    📝 Tắt CC/Subtitles")
+    except Exception:
+        pass
+
+
+def fullscreen_va_thoat(driver):
+    """Vào fullscreen xem một lúc rồi thoát."""
+    try:
+        body = driver.find_element(By.TAG_NAME, "body")
+        body.send_keys("f")
+        giay = random.randint(5, 30)
+        log(f"    📺 Fullscreen {giay}s")
+        time.sleep(giay)
+        body.send_keys("f")  # hoặc Escape
+    except Exception:
+        pass
+
+
+def doc_mo_ta_video(driver):
+    """Mở rộng description, đọc, đôi khi click hashtag."""
+    try:
+        # Tìm nút expand description
+        expand_sels = [
+            "#expand",
+            "ytd-text-inline-expander button",
+            "#description-inline-expander button",
+            "tp-yt-paper-button#expand",
+        ]
+        expanded = False
+        for sel in expand_sels:
+            try:
+                btn = driver.find_element(By.CSS_SELECTOR, sel)
+                if btn.is_displayed():
+                    hover_element(driver, btn)
+                    driver.execute_script("arguments[0].click();", btn)
+                    log("    📄 Mở rộng description")
+                    expanded = True
+                    break
+            except Exception:
+                pass
+
+        if not expanded:
+            return
+
+        # Đọc description
+        time.sleep(random.uniform(5, 20))
+        cuon_tu_nhien(driver, "xuong", random.randint(1, 3))
+
+        # 40% xác suất click hashtag
+        if random.random() < 0.40:
+            try:
+                hashtags = driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "#description a[href*='hashtag'], #description a[href*='/search']"
+                )
+                if hashtags:
+                    tag = random.choice(hashtags[:5])
+                    hover_element(driver, tag)
+                    delay(0.5, 1.5)
+                    # Không click thật — chỉ hover (tránh navigate)
+            except Exception:
+                pass
+
+        # Collapse lại
+        try:
+            collapse_sels = ["#collapse", "tp-yt-paper-button#collapse"]
+            for sel in collapse_sels:
+                try:
+                    btn = driver.find_element(By.CSS_SELECTOR, sel)
+                    if btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", btn)
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def luu_xem_sau(driver):
+    """Lưu video vào Watch Later."""
+    try:
+        # Click nút "..." menu dưới video
+        more_btns = driver.find_elements(
+            By.CSS_SELECTOR,
+            "ytd-menu-renderer .yt-icon-button, #top-level-buttons-computed ytd-button-renderer"
+        )
+        menu_btn = None
+        for btn in more_btns:
+            aria = btn.get_attribute("aria-label") or ""
+            if "more" in aria.lower() or "..." in (btn.text or ""):
+                menu_btn = btn
+                break
+
+        if not menu_btn:
+            # Fallback: tìm button có icon dấu "..."
+            menu_btn = driver.find_element(
+                By.CSS_SELECTOR,
+                "ytd-video-primary-info-renderer ytd-menu-renderer button"
+            )
+
+        hover_element(driver, menu_btn)
+        driver.execute_script("arguments[0].click();", menu_btn)
+        time.sleep(random.uniform(0.8, 1.5))
+
+        # Tìm "Save" / "Watch later"
+        items = driver.find_elements(By.CSS_SELECTOR, "ytd-menu-service-item-renderer, yt-formatted-string")
+        for item in items:
+            txt = (item.text or "").lower()
+            if "save" in txt or "後で" in txt or "lưu" in txt or "watch later" in txt:
+                driver.execute_script("arguments[0].click();", item)
+                log("    🕐 Lưu vào Watch Later")
+                time.sleep(random.uniform(0.5, 1.0))
+                # Đóng dialog nếu xuất hiện
+                try:
+                    close = driver.find_element(By.CSS_SELECTOR, "ytd-add-to-playlist-renderer button[aria-label*='Close'], paper-dialog button[aria-label*='Close']")
+                    driver.execute_script("arguments[0].click();", close)
+                except Exception:
+                    try:
+                        driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+                    except Exception:
+                        pass
+                return
+    except Exception:
+        try:
+            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+        except Exception:
+            pass
+
+
+def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
+    """
+    Visit channel page sau khi xem video.
+    Lướt, hover thumbnails, đôi khi subscribe.
+    Trả về True nếu thành công.
+    """
+    try:
+        # Click vào tên/avatar channel
+        channel_sels = [
+            "#channel-name a", "#owner a", "ytd-channel-name a",
+            ".ytd-channel-name a", "#top-row ytd-channel-name a",
+        ]
+        channel_link = None
+        for sel in channel_sels:
+            try:
+                el = driver.find_element(By.CSS_SELECTOR, sel)
+                if el.is_displayed() and el.get_attribute("href"):
+                    channel_link = el
+                    break
+            except Exception:
+                pass
+
+        if not channel_link:
+            return False
+
+        hover_element(driver, channel_link)
+        delay(0.5, 1.2)
+        driver.execute_script("arguments[0].click();", channel_link)
+        _cho_trang_load(driver, timeout=15)
+        delay(2, 4)
+
+        channel_url = driver.current_url
+        if "youtube.com/@" not in channel_url and "/channel/" not in channel_url:
+            return False
+
+        log(f"  🔗 Tham kênh YouTube: {channel_url[:60]}")
+
+        # Lướt trang channel
+        cuon_tu_nhien(driver, "xuong", random.randint(3, 6))
+        delay(2, 5)
+
+        # Hover qua 2-3 video thumbnails
+        try:
+            thumbs = driver.find_elements(By.CSS_SELECTOR, "ytd-rich-item-renderer, ytd-grid-video-renderer")
+            for thumb in random.sample(thumbs, min(3, len(thumbs))):
+                hover_element(driver, thumb)
+                delay(0.5, 1.5)
+        except Exception:
+            pass
+
+        # 20% xem thêm 1 video ngắn từ channel
+        if random.random() < 0.20:
+            try:
+                vids = driver.find_elements(By.CSS_SELECTOR, "ytd-rich-item-renderer h3 a, ytd-grid-video-renderer h3 a")
+                if vids:
+                    v = random.choice(vids[:6])
+                    hover_element(driver, v)
+                    delay(0.3, 0.8)
+                    driver.execute_script("arguments[0].click();", v)
+                    _cho_trang_load(driver, timeout=15)
+                    delay(2, 4)
+                    giay = random.randint(20, 40)
+                    log(f"    📺 Xem thêm video channel {giay}s")
+                    time.sleep(giay)
+                    driver.back()
+                    _cho_trang_load(driver, timeout=10)
+                    delay(1, 3)
+            except Exception:
+                pass
+
+        # Hover Subscribe (engaged: 30% click thật)
+        try:
+            sub_btn = driver.find_element(By.CSS_SELECTOR,
+                "#subscribe-button button, ytd-subscribe-button-renderer button")
+            if sub_btn.is_displayed():
+                hover_element(driver, sub_btn)
+                delay(1, 3)
+                if mood.name == "engaged" and random.random() < 0.30:
+                    driver.execute_script("arguments[0].click();", sub_btn)
+                    log("    🔔 Đã Subscribe kênh")
+                    time.sleep(random.uniform(1, 2))
+        except Exception:
+            pass
+
+        # Quay về
+        if search_url:
+            driver.get(search_url)
+        else:
+            driver.back()
+        _cho_trang_load(driver, timeout=12)
+        delay(1, 3)
+        return True
+
+    except Exception as e:
+        try:
+            if search_url:
+                driver.get(search_url)
+            else:
+                driver.back()
+        except Exception:
+            pass
+        return False
+
+
+def mo_thong_bao(driver):
+    """
+    Mở notification panel thật (không chỉ hover).
+    Hover qua 1-2 notification, đôi khi click vào 1 cái.
+    """
+    try:
+        bell = driver.find_element(By.CSS_SELECTOR,
+            "#notification-button button, button[aria-label*='otification']")
+        if not bell.is_displayed():
+            return
+
+        hover_element(driver, bell)
+        delay(0.5, 1.0)
+        driver.execute_script("arguments[0].click();", bell)
+        delay(1.5, 3)
+        log("  🔔 Mở notification panel")
+
+        # Hover qua notifications
+        try:
+            notifs = driver.find_elements(By.CSS_SELECTOR,
+                "ytd-notification-renderer, .notification-item")
+            for notif in random.sample(notifs, min(2, len(notifs))):
+                hover_element(driver, notif)
+                delay(0.8, 2)
+
+            # 20% click vào 1 notification
+            if notifs and random.random() < 0.20:
+                n = random.choice(notifs[:5])
+                driver.execute_script("arguments[0].click();", n)
+                _cho_trang_load(driver, timeout=15)
+                delay(2, 5)
+                log("    📌 Click notification, xem nhanh")
+                time.sleep(random.randint(15, 45))
+                driver.back()
+                _cho_trang_load(driver, timeout=10)
+                delay(1, 3)
+                return
+        except Exception:
+            pass
+
+        # Đóng panel
+        try:
+            driver.execute_script("arguments[0].click();", bell)
+        except Exception:
+            try:
+                driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+            except Exception:
+                pass
+
+    except Exception:
+        pass
+
+
+def rabbit_hole(driver, search_url: str, mood: SessionMood):
+    """
+    Depth-2 rabbit hole: sau related video 1, xem thêm 1 related nữa.
+    Depth tối đa = 2. Sau xong quay về search_url.
+    """
+    try:
+        related = driver.find_elements(By.CSS_SELECTOR,
+            "ytd-compact-video-renderer h3 a, ytd-watch-next-secondary-results-renderer h3 a")
+        if not related:
+            return
+
+        chon = random.choice(related[:5])
+        tieu_de = (chon.text or "")[:35]
+        hover_element(driver, chon)
+        delay(0.5, 1.0)
+        driver.execute_script("arguments[0].click();", chon)
+        _cho_trang_load(driver, timeout=15)
+        delay(2, 4)
+
+        giay = random.randint(20, 60)
+        log(f"  🐇 Rabbit hole depth-2: '{tieu_de}...' {giay}s")
+        time.sleep(giay)
+
+    except Exception:
+        pass
+    finally:
+        try:
+            driver.get(search_url)
+            _cho_trang_load(driver, timeout=12)
+            delay(2, 4)
+        except Exception:
+            pass
+
+
+def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
+    """
+    Vào YouTube bằng cách search Google thay vì trực tiếp.
+    Trả về True nếu thành công, False để fallback về direct URL.
+    """
+    try:
+        driver.get("https://www.google.com")
+        delay(2, 4)
+
+        # Tìm ô search Google
+        search_box = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.NAME, "q"))
+        )
+        hover_element(driver, search_box)
+        delay(0.5, 1.2)
+
+        # Gõ từ khóa + "youtube" (kiểu tìm kiếm tự nhiên)
+        query = tu_khoa + " youtube"
+        go_co_loi_chinh_ta = lambda el, text: [
+            (el.send_keys(ch), time.sleep(random.uniform(0.05, 0.20)))
+            for ch in text
+        ]
+        for ch in query:
+            search_box.send_keys(ch)
+            time.sleep(random.uniform(0.05, 0.18))
+        delay(0.5, 1.5)
+        search_box.send_keys(Keys.RETURN)
+        delay(2, 4)
+
+        # Tìm và click kết quả YouTube đầu tiên
+        results = driver.find_elements(By.CSS_SELECTOR, "a[href*='youtube.com']")
+        for r in results[:5]:
+            href = r.get_attribute("href") or ""
+            if "youtube.com/results" in href or "youtube.com/watch" in href:
+                hover_element(driver, r)
+                delay(0.3, 0.8)
+                driver.execute_script("arguments[0].click();", r)
+                _cho_trang_load(driver, timeout=20)
+                delay(2, 4)
+                if "youtube.com" in driver.current_url:
+                    log("  🌐 Vào YouTube qua Google Search")
+                    return True
+
+        # Fallback: navigate trực tiếp sau khi Google failed
+        return False
+
+    except Exception:
+        return False
+
+
 def cold_start(driver, mood: SessionMood):
     """
     Warm-up trước khi bắt đầu task — giả lập hành vi ngay khi mở browser.
@@ -154,14 +628,17 @@ def cold_start(driver, mood: SessionMood):
 
     roll = random.random()
     if roll < 0.28:
-        # Hover notification bell như đang kiểm tra thông báo
-        try:
-            bell = driver.find_element(By.CSS_SELECTOR,
-                "#notification-button, button[aria-label*='otification']")
-            hover_element(driver, bell)
-            delay(1.5, 4)
-        except Exception:
-            pass
+        # Mở notification panel thật (60%) hoặc chỉ hover (40%)
+        if random.random() < 0.60:
+            mo_thong_bao(driver)
+        else:
+            try:
+                bell = driver.find_element(By.CSS_SELECTOR,
+                    "#notification-button, button[aria-label*='otification']")
+                hover_element(driver, bell)
+                delay(1.5, 4)
+            except Exception:
+                pass
 
     elif roll < 0.50:
         # Lướt lịch sử xem trước
@@ -228,6 +705,14 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
     crash     = False
     MAX_GIAY  = giay_xem * 3 + 90
     t_bat_dau = time.time()
+
+    # Local flags — mỗi hành vi chỉ xảy ra 1 lần/video (giống người thật)
+    _quality_changed  = False
+    _subtitle_toggled = False
+    _speed_changed    = False
+    _fullscreened     = False
+    _theater          = False
+    _desc_expanded    = False
 
     # Cumulative thresholds từ mood (thay hardcode)
     t_pause    = mood.pause_prob
@@ -350,6 +835,38 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
             pass
 
         nghi_ngau_nhien(ty_le=0.1)
+
+        # ── Hành vi một lần/video (check độc lập, không exclusive) ──
+        try:
+            if not _quality_changed and random.random() < mood.quality_change_prob:
+                doi_chat_luong_video(driver)
+                _quality_changed = True
+
+            elif not _subtitle_toggled and random.random() < mood.subtitle_prob:
+                bat_tat_phu_de(driver)
+                _subtitle_toggled = True
+
+            elif not _speed_changed and random.random() < mood.speed_change_prob:
+                thay_toc_do_phat(driver)
+                _speed_changed = True
+
+            elif not _fullscreened and random.random() < mood.fullscreen_prob:
+                fullscreen_va_thoat(driver)
+                _fullscreened = True
+
+            elif not _theater and random.random() < mood.theater_prob:
+                body = driver.find_element(By.TAG_NAME, "body")
+                body.send_keys("t")   # theater mode
+                time.sleep(random.uniform(8, 25))
+                body.send_keys("t")   # exit theater
+                _theater = True
+
+            elif not _desc_expanded and random.random() < mood.desc_expand_prob:
+                doc_mo_ta_video(driver)
+                _desc_expanded = True
+        except Exception:
+            pass
+
         watchdog_tabs(driver, handles_cho_phep, tab_video)
 
     return crash
@@ -429,12 +946,18 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
         log("  ❌ Browser đã đóng, bỏ qua YouTube")
         return 0
 
-    try:
-        driver.get("https://www.youtube.com")
-        delay(3, 6)
-    except Exception as e:
-        log(f"  ❌ Không vào YouTube được: {str(e)[:60]}")
-        return 0
+    # Entry point: 25% vào qua Google Search thay vì direct URL
+    entry_ok = False
+    if random.random() < 0.25:
+        entry_ok = vao_youtube_qua_google(driver, tu_khoa)
+
+    if not entry_ok:
+        try:
+            driver.get("https://www.youtube.com")
+            delay(3, 6)
+        except Exception as e:
+            log(f"  ❌ Không vào YouTube được: {str(e)[:60]}")
+            return 0
 
     try:
         cur = driver.current_url
@@ -449,6 +972,9 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
 
     handles_yt = set(driver.window_handles)
     luot_trang_chu_youtube(driver)
+
+    # Session-level watch_later flag (chỉ lưu 1 lần/session)
+    _saved_watch_later = False
 
     if not tim_kiem_youtube(driver, tu_khoa):
         return 0
@@ -516,6 +1042,11 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
                 else:
                     break
 
+            # Watch Later — lưu video 1 lần/session
+            if not _saved_watch_later and random.random() < mood.watch_later_prob:
+                luu_xem_sau(driver)
+                _saved_watch_later = True
+
             giay = random.randint(min_giay, max_giay)
             # Early exit: mood quyết định thoát sớm hay xem đủ
             if random.random() < mood.early_exit_prob:
@@ -532,7 +1063,16 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             da_xem += 1
 
             if da_xem < so_video:
-                xem_video_lien_quan(driver, search_url)
+                # Channel visit (mood-based, mutually exclusive với related)
+                if random.random() < mood.channel_visit_prob:
+                    tham_kenh_youtube(driver, mood, search_url)
+                    # tham_kenh đã navigate về search_url
+                elif random.random() < 0.25:
+                    # Rabbit hole thay vì single related
+                    if random.random() < mood.rabbit_hole_prob:
+                        rabbit_hole(driver, search_url, mood)
+                    else:
+                        xem_video_lien_quan(driver, search_url)
 
             handles_yt = set(driver.window_handles)
             don_dep_tab_la(driver, handles_yt)

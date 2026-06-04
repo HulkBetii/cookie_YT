@@ -22,6 +22,7 @@ from .cdp import cdp_scroll
 @dataclass
 class SessionMood:
     name: str
+    # ── In-video interaction probs ────────────────────────────────
     pause_prob: float        # Xác suất pause/resume mỗi chunk
     seek_fwd_prob: float     # Xác suất tua tiến
     seek_bwd_prob: float     # Xác suất tua lùi
@@ -33,6 +34,17 @@ class SessionMood:
     chunk_skip_prob: float   # Xác suất xem lặng lẽ (không interact chunk này)
     early_exit_prob: float   # Xác suất thoát video trước khi hết
     early_exit_ratio: tuple  # (min, max) ratio thời lượng trước khi thoát
+    # ── New: session-level behavior probs ────────────────────────
+    notif_open_prob: float   # Xác suất mở notification panel thật
+    channel_visit_prob: float # Xác suất visit channel page sau video
+    quality_change_prob: float # Xác suất đổi chất lượng video
+    subtitle_prob: float     # Xác suất bật/tắt CC/Subtitles
+    speed_change_prob: float # Xác suất đổi tốc độ phát (0.75×/1.25×/1.5×)
+    fullscreen_prob: float   # Xác suất fullscreen rồi thoát
+    theater_prob: float      # Xác suất theater mode (phím t)
+    watch_later_prob: float  # Xác suất lưu vào Watch Later
+    desc_expand_prob: float  # Xác suất mở rộng description
+    rabbit_hole_prob: float  # Xác suất xem depth-2 (related của related)
 
 
 def draw_session_mood() -> SessionMood:
@@ -42,26 +54,41 @@ def draw_session_mood() -> SessionMood:
     """
     roll = random.random()
     if roll < 0.28:
-        # Passive: lười tương tác, hay thoát sớm
+        # Passive: lười tương tác, hay thoát sớm, ít dùng tính năng
         return SessionMood("passive",
             pause_prob=0.05, seek_fwd_prob=0.06, seek_bwd_prob=0.03,
             comment_prob=0.04, like_prob=0.03, like_click_prob=0.08,
             vol_prob=0.02,  related_prob=0.03,  chunk_skip_prob=0.55,
-            early_exit_prob=0.22, early_exit_ratio=(0.20, 0.55))
+            early_exit_prob=0.22, early_exit_ratio=(0.20, 0.55),
+            notif_open_prob=0.05,   channel_visit_prob=0.05,
+            quality_change_prob=0.04, subtitle_prob=0.03,
+            speed_change_prob=0.02,  fullscreen_prob=0.05,
+            theater_prob=0.04,       watch_later_prob=0.02,
+            desc_expand_prob=0.06,   rabbit_hole_prob=0.05)
     elif roll < 0.68:
         # Normal: tương tác vừa phải
         return SessionMood("normal",
             pause_prob=0.18, seek_fwd_prob=0.12, seek_bwd_prob=0.08,
             comment_prob=0.09, like_prob=0.07, like_click_prob=0.28,
             vol_prob=0.05,  related_prob=0.05,  chunk_skip_prob=0.28,
-            early_exit_prob=0.10, early_exit_ratio=(0.30, 0.65))
+            early_exit_prob=0.10, early_exit_ratio=(0.30, 0.65),
+            notif_open_prob=0.15,   channel_visit_prob=0.20,
+            quality_change_prob=0.12, subtitle_prob=0.08,
+            speed_change_prob=0.10,  fullscreen_prob=0.15,
+            theater_prob=0.12,       watch_later_prob=0.08,
+            desc_expand_prob=0.18,   rabbit_hole_prob=0.15)
     else:
-        # Engaged: xem kỹ, tương tác nhiều, ít thoát sớm
+        # Engaged: xem kỹ, tương tác nhiều, dùng nhiều tính năng
         return SessionMood("engaged",
             pause_prob=0.25, seek_fwd_prob=0.16, seek_bwd_prob=0.10,
             comment_prob=0.14, like_prob=0.12, like_click_prob=0.45,
             vol_prob=0.07,  related_prob=0.08,  chunk_skip_prob=0.08,
-            early_exit_prob=0.04, early_exit_ratio=(0.50, 0.80))
+            early_exit_prob=0.04, early_exit_ratio=(0.50, 0.80),
+            notif_open_prob=0.30,   channel_visit_prob=0.40,
+            quality_change_prob=0.20, subtitle_prob=0.18,
+            speed_change_prob=0.22,  fullscreen_prob=0.28,
+            theater_prob=0.20,       watch_later_prob=0.18,
+            desc_expand_prob=0.35,   rabbit_hole_prob=0.28)
 
 
 def delay(min_s=1.0, max_s=3.0):
