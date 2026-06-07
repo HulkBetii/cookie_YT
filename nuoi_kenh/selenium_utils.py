@@ -45,3 +45,18 @@ def _cho_trang_load(driver, timeout=15):
         )
     except TimeoutException:
         pass
+
+
+def safe_window_handles(driver, default=None):
+    """
+    driver.window_handles gọi qua HTTP tới GPMDriver — trên proxy Nhật chậm,
+    request này có thể treo quá read-timeout (30s) và raise
+    WebDriverException/ReadTimeoutError KHÔNG bắt được bằng try/except thường
+    ở tầng gọi (vì nhiều nơi gọi raw `set(driver.window_handles)` ngay đầu
+    luồng, chưa vào try). Một lần raise như vậy phá luôn cả session.
+    Bọc lại ở đây để luôn trả về an toàn (set rỗng / default) thay vì crash.
+    """
+    try:
+        return set(driver.window_handles)
+    except Exception:
+        return default if default is not None else set()

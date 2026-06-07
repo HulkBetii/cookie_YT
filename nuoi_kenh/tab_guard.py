@@ -5,7 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from .config import DOMAINS_QUANG_CAO
 from .logger import log
-from .selenium_utils import selenium_call
+from .selenium_utils import selenium_call, safe_window_handles
 from .human_behavior import kiem_tra_ket_noi
 
 
@@ -77,14 +77,14 @@ def click_an_toan(driver, element, handles_cho_phep: set,
     cho_tab_moi=True → giữ lại tab hợp lệ và trả về handle.
     """
     tab_hien_tai = driver.current_window_handle
-    handles_truoc = set(driver.window_handles)
+    handles_truoc = safe_window_handles(driver)
     try:
         driver.execute_script("arguments[0].click();", element)
     except Exception:
         return None
 
     time.sleep(timeout_tab)
-    handles_sau = set(driver.window_handles)
+    handles_sau = safe_window_handles(driver)
     tab_moi_xuat_hien = handles_sau - handles_truoc
 
     if not tab_moi_xuat_hien:

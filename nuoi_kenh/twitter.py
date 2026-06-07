@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, TWITTER_KEYWORDS, TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load
+from .selenium_utils import _cho_trang_load, safe_window_handles
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -291,7 +291,7 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         log("  ⚠️ X yêu cầu đăng nhập — profile chưa login Twitter/X")
         return 0
 
-    handles_goc = set(driver.window_handles)
+    handles_goc = safe_window_handles(driver)
 
     # ── Scroll timeline + hover tweets ───────────────────────────
     cuon_tu_nhien(driver, "xuong", random.randint(3, 7))

@@ -13,7 +13,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, GOOGLE_KEYWORDS, TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load
+from .selenium_utils import _cho_trang_load, safe_window_handles
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -253,7 +253,7 @@ def tim_kiem_google(driver, so_lan: int, mood: SessionMood) -> int:
     if TU_DONG_DONG_POPUP:
         dong_popup_tu_dong(driver)
 
-    handles_goc = set(driver.window_handles)
+    handles_goc = safe_window_handles(driver)
     da_doc = 0
 
     # ── Search loop ───────────────────────────────────────────────

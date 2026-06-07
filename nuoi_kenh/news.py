@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, SU_DUNG_GOOGLE_NEWS, NEWS_SITES, GMAIL_ACCOUNTS
 from .logger import log
-from .selenium_utils import _cho_trang_load
+from .selenium_utils import _cho_trang_load, safe_window_handles
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -269,7 +269,7 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
     cuon_tu_nhien(driver, "xuong", random.randint(3, 6))
     nghi_ngau_nhien(ty_le=0.3)
 
-    handles_goc = set(driver.window_handles)
+    handles_goc = safe_window_handles(driver)
     da_doc = 0
 
     for _ in range(so_bai * 4):

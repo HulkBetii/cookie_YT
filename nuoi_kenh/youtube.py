@@ -13,7 +13,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load
+from .selenium_utils import _cho_trang_load, safe_window_handles
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element, go_co_loi_chinh_ta,
@@ -778,7 +778,7 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
 
         try:
             if driver.current_window_handle != tab_video:
-                if tab_video in driver.window_handles:
+                if tab_video in safe_window_handles(driver):
                     driver.switch_to.window(tab_video)
                 else:
                     crash = True
@@ -1059,7 +1059,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
     # Cold start — warm-up behavior trước khi bắt đầu task
     cold_start(driver, mood)
 
-    handles_yt = set(driver.window_handles)
+    handles_yt = safe_window_handles(driver)
     luot_trang_chu_youtube(driver)
 
     # Session-level watch_later flag (chỉ lưu 1 lần/session)
@@ -1111,7 +1111,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             hover_element(driver, video)
             delay(0.3, 0.8)
 
-            handles_yt = set(driver.window_handles)
+            handles_yt = safe_window_handles(driver)
             cdp_click(driver, video)
             time.sleep(0.8)
             don_dep_tab_la(driver, handles_yt)
@@ -1122,7 +1122,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             if not kiem_tra_ket_noi(driver):
                 break
 
-            handles_yt = set(driver.window_handles)
+            handles_yt = safe_window_handles(driver)
             don_dep_tab_la(driver, handles_yt)
 
             for _ in range(3):
@@ -1163,7 +1163,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
                     else:
                         xem_video_lien_quan(driver, search_url)
 
-            handles_yt = set(driver.window_handles)
+            handles_yt = safe_window_handles(driver)
             don_dep_tab_la(driver, handles_yt)
             try:
                 driver.get(search_url)
