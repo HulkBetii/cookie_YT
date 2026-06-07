@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, YAHOO_KEYWORDS
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles
+from .selenium_utils import _cho_trang_load, safe_window_handles, safe_get
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -233,12 +233,14 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
         return 0
 
     # ── Vào trang chủ Yahoo! Japan ───────────────────────────────
+    if not safe_get(driver, _YAHOO_HOME, timeout=25):
+        log("  ⚠️ Không vào được Yahoo! Japan (timeout/proxy chậm)")
+        return 0
     try:
-        driver.get(_YAHOO_HOME)
         _cho_trang_load(driver, timeout=20)
         delay(3, 6)
     except Exception as e:
-        log(f"  ⚠️ Không vào được Yahoo! Japan: {str(e)[:60]}")
+        log(f"  ⚠️ Lỗi sau khi vào Yahoo! Japan: {str(e)[:60]}")
         return 0
 
     if TU_DONG_DONG_POPUP:
@@ -282,19 +284,21 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             _tim_kiem_yahoo(driver, kw)
             don_dep_tab_la(driver, handles_goc)
             # Quay về trang chủ sau khi search
-            driver.get(_YAHOO_HOME)
-            _cho_trang_load(driver, timeout=15)
-            delay(2, 4)
+            if safe_get(driver, _YAHOO_HOME, timeout=20):
+                _cho_trang_load(driver, timeout=15)
+                delay(2, 4)
         except Exception:
             pass
 
     # ── Vào Yahoo News để đọc bài ────────────────────────────────
+    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
+        log("  ⚠️ Không vào news.yahoo.co.jp (timeout/proxy chậm)")
+        return 0
     try:
-        driver.get(_YAHOO_NEWS_HOME)
         _cho_trang_load(driver, timeout=15)
         delay(2, 4)
     except Exception as e:
-        log(f"  ⚠️ Không vào news.yahoo.co.jp: {str(e)[:60]}")
+        log(f"  ⚠️ Lỗi sau khi vào Yahoo News: {str(e)[:60]}")
         return 0
 
     if TU_DONG_DONG_POPUP:
@@ -347,9 +351,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             delay(0.5, 1.0)
 
             url_truoc = driver.current_url
-            try:
-                driver.get(href)
-            except Exception:
+            if not safe_get(driver, href, timeout=20):
                 delay(1, 2)
                 continue
 
@@ -368,11 +370,8 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
                 driver.back()
                 _cho_trang_load(driver, timeout=10)
             except Exception:
-                try:
-                    driver.get(_YAHOO_NEWS_HOME)
+                if safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
                     _cho_trang_load(driver, timeout=15)
-                except Exception:
-                    pass
             delay(2, 3)
             don_dep_tab_la(driver, handles_goc)
 

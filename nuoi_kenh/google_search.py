@@ -13,7 +13,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, GOOGLE_KEYWORDS, TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles
+from .selenium_utils import _cho_trang_load, safe_window_handles, safe_get
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -173,9 +173,7 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
                 pass
 
             url_truoc = driver.current_url
-            try:
-                driver.get(href)
-            except Exception:
+            if not safe_get(driver, href, timeout=20):
                 delay(1, 2)
                 continue
 
@@ -194,10 +192,9 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
                 driver.back()
                 _cho_trang_load(driver, timeout=10)
             except Exception:
-                try:
-                    driver.get(_GOOGLE_URL)
+                if safe_get(driver, _GOOGLE_URL, timeout=20):
                     _cho_trang_load(driver, timeout=15)
-                except Exception:
+                else:
                     return da_doc
             delay(2, 3)
             don_dep_tab_la(driver, handles_goc)
@@ -242,12 +239,14 @@ def tim_kiem_google(driver, so_lan: int, mood: SessionMood) -> int:
         return 0
 
     # ── Vào Google ────────────────────────────────────────────────
+    if not safe_get(driver, _GOOGLE_URL, timeout=25):
+        log("  ⚠️ Không vào được Google (timeout/proxy chậm) — bỏ qua Google Search")
+        return 0
     try:
-        driver.get(_GOOGLE_URL)
         _cho_trang_load(driver, timeout=20)
         delay(2, 5)
     except Exception as e:
-        log(f"  ⚠️ Không vào được Google: {str(e)[:60]}")
+        log(f"  ⚠️ Lỗi sau khi vào Google: {str(e)[:60]}")
         return 0
 
     if TU_DONG_DONG_POPUP:

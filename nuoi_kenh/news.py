@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, SU_DUNG_GOOGLE_NEWS, NEWS_SITES, GMAIL_ACCOUNTS
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles
+from .selenium_utils import _cho_trang_load, safe_window_handles, safe_get
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -240,12 +240,10 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
     """Đọc báo từ Google News — mô phỏng hành vi người thật."""
     log(f"  📰 Google News | {so_bai} bài...")
 
-    try:
-        driver.get("https://news.google.com/")
-        delay(3, 6)
-    except Exception as e:
-        log(f"  ⚠️ Không vào Google News: {str(e)[:60]}")
+    if not safe_get(driver, "https://news.google.com/", timeout=25):
+        log("  ⚠️ Không vào Google News (timeout/proxy chậm)")
         return 0
+    delay(3, 6)
 
     if TU_DONG_DONG_POPUP:
         dong_popup_tu_dong(driver)
@@ -296,9 +294,7 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
             delay(0.5, 1.0)
 
             url_truoc = driver.current_url
-            try:
-                driver.get(href_bai)
-            except Exception:
+            if not safe_get(driver, href_bai, timeout=20):
                 delay(1, 2)
                 continue
 
@@ -318,8 +314,8 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
                 driver.back()
                 _cho_trang_load(driver, timeout=10)
             except Exception:
-                driver.get("https://news.google.com/")
-                _cho_trang_load(driver, timeout=15)
+                if safe_get(driver, "https://news.google.com/", timeout=20):
+                    _cho_trang_load(driver, timeout=15)
             delay(2, 3)
             don_dep_tab_la(driver, handles_goc)
 
@@ -363,7 +359,10 @@ def doc_bao(driver, so_bai: int) -> int:
         site = random.choice(NEWS_SITES)
         try:
             log(f"  📖 [{da_doc+1}/{so_bai}] {site}")
-            driver.get(site)
+            if not safe_get(driver, site, timeout=20):
+                log(f"  ⚠️ Timeout vào {site}, thử trang khác...")
+                da_doc += 1
+                continue
             delay(2, 5)
             cuon_tu_nhien(driver, "xuong", random.randint(3, 6))
             try:
