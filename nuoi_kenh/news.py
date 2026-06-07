@@ -8,7 +8,7 @@ from selenium.common.exceptions import (
     WebDriverException, NoSuchWindowException, StaleElementReferenceException,
 )
 
-from .config import TU_DONG_DONG_POPUP, SU_DUNG_GOOGLE_NEWS, NEWS_SITES
+from .config import TU_DONG_DONG_POPUP, SU_DUNG_GOOGLE_NEWS, NEWS_SITES, GMAIL_ACCOUNTS
 from .logger import log
 from .selenium_utils import _cho_trang_load
 from .human_behavior import (
@@ -118,13 +118,37 @@ def dong_popup_tu_dong(driver, lan_thu=3):
 
 # ── Login check ───────────────────────────────────────────────────
 
-def xu_ly_yeu_cau_dang_nhap(driver) -> bool:
-    """Trả về False nếu bị redirect sang trang đăng nhập thật."""
+def xu_ly_yeu_cau_dang_nhap(driver, profile_name: str = "") -> bool:
+    """
+    Kiểm tra trạng thái đăng nhập.
+    - Nếu bị redirect sang trang login Google → thử tự đăng nhập bằng GMAIL_ACCOUNTS.
+    - Nếu không có credentials → bỏ qua profile (hành vi cũ).
+    - Bỏ qua banner "Sign in" nhẹ (YouTube gợi ý login, không bắt buộc).
+    """
     try:
         url = driver.current_url.lower()
-        if "accounts.google.com/signin" in url or "accounts.google.com/servicologin" in url:
-            log("  ⚠️ Profile chưa đăng nhập Google — bỏ qua profile này")
-            return False
+
+        _LOGIN_WALLS = (
+            "accounts.google.com/signin",
+            "accounts.google.com/v3/signin",
+            "accounts.google.com/servicelogin",
+            "accounts.google.com/servicologin",
+        )
+
+        if any(p in url for p in _LOGIN_WALLS):
+            creds = GMAIL_ACCOUNTS.get(profile_name, ())
+            if creds and len(creds) == 2:
+                log(f"  🔐 Session hết hạn — tự đăng nhập ({profile_name})")
+                from .gmail_login import dang_nhap_google
+                ok = dang_nhap_google(driver, creds[0], creds[1])
+                if not ok:
+                    log("  ❌ Đăng nhập thất bại — bỏ qua profile")
+                return ok
+            else:
+                log("  ⚠️ Profile chưa đăng nhập Google, không có credentials — bỏ qua")
+                return False
+
+        # Banner "Sign in" nhẹ (không bắt buộc) — bỏ qua
         for sel in ["ytd-button-renderer#dismiss-button button",
                     "button[aria-label='No thanks']", "#dismiss-button"]:
             try:

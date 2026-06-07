@@ -18,6 +18,9 @@ from nuoi_kenh.config import (
     NGHI_DAI_MIN, NGHI_DAI_MAX, NGHI_NGAN_MIN, NGHI_NGAN_MAX,
     TRON_PROFILES, DANH_SACH_TU_KHOA, TU_DONG_DONG_POPUP,
     KIEM_TRA_PROXY, THU_LAI_KHI_LOI, LOG_FILE, GPM_BROWSER_DIR,
+    LUOT_YAHOO, SO_YAHOO_MIN, SO_YAHOO_MAX,
+    TIM_KIEM_GOOGLE, SO_GOOGLE_MIN, SO_GOOGLE_MAX,
+    LUOT_TWITTER, SO_TWITTER_MIN, SO_TWITTER_MAX,
 )
 from nuoi_kenh.logger import log
 from nuoi_kenh.gpm_api import (
@@ -30,6 +33,11 @@ from nuoi_kenh.news import (
     dong_popup_tu_dong, xu_ly_yeu_cau_dang_nhap, doc_bao,
 )
 from nuoi_kenh.youtube import xem_youtube
+from nuoi_kenh.yahoo import luot_yahoo_japan
+from nuoi_kenh.google_search import tim_kiem_google
+from nuoi_kenh.twitter import luot_twitter
+from nuoi_kenh.gmail_login import can_kiem_tra_login, dang_nhap_google
+from nuoi_kenh.config import GMAIL_ACCOUNTS
 
 
 # ── Keyword rotation ─────────────────────────────────────────────
@@ -52,11 +60,91 @@ def _in_thong_ke(vong: int, stats: dict, tu_khoa: str, thoi_gian: float):
     log(f"    ❌ Lỗi / bỏ   : {stats['loi']} profile")
     log(f"    🎬 Video đã xem: {stats['video']} video")
     log(f"    📰 Bài đã đọc : {stats['bai']} bài")
+    if stats.get("yahoo", 0) > 0:
+        log(f"    🟡 Yahoo duyệt : {stats['yahoo']} bài")
+    if stats.get("google", 0) > 0:
+        log(f"    🔍 Google search: {stats['google']} trang")
+    if stats.get("twitter", 0) > 0:
+        log(f"    🐦 Twitter duyệt: {stats['twitter']} bài")
     if stats["chi_tiet_loi"]:
         log("    Chi tiết lỗi:")
         for ten, ly_do in stats["chi_tiet_loi"]:
             log(f"      • {ten}: {ly_do}")
     log("=" * 55)
+
+
+# ── Helpers ───────────────────────────────────────────────────────
+
+def _spread_weights(n: int, peak_right: bool = True) -> list:
+    """
+    Sinh weights hình chuông cho n phần tử — peak ở 60-70% từ trái.
+    peak_right=True  → thiên về nửa trên (dùng cho video count).
+    peak_right=False → thiên về giữa  (dùng cho article count).
+    Không bao giờ crash vì luôn trả về đúng n phần tử.
+    """
+    if n == 1:
+        return [1]
+    peak = max(0, min(n - 1, int(n * (0.65 if peak_right else 0.50))))
+    w = []
+    for i in range(n):
+        dist = abs(i - peak)
+        w.append(max(1, 10 - dist * 2))
+    return w
+
+
+# ── Session planner ───────────────────────────────────────────────
+
+# Xác suất từng hoạt động được chọn vào session, theo mood
+_XS_HOAT_DONG = {
+    #           passive  normal  engaged
+    "yahoo":   (0.82,    0.70,   0.52),   # passive: lướt Yahoo thoải mái; engaged: bỏ qua để search thẳng
+    "google":  (0.20,    0.55,   0.83),   # engaged: tìm kiếm có chủ đích
+    "news":    (0.42,    0.63,   0.74),   # engaged: đọc tin nhiều hơn
+    "twitter": (0.28,    0.58,   0.80),   # passive ít dùng social; engaged chủ động browse
+}
+
+
+def _ke_hoach_session(mood, so_tin: int) -> list:
+    """
+    Xây dựng danh sách hoạt động ngẫu nhiên cho session này.
+    YouTube luôn có mặt; phần còn lại phụ thuộc mood + xác suất.
+    """
+    mi = {"passive": 0, "normal": 1, "engaged": 2}.get(mood.name, 1)
+
+    pool = ["youtube"]   # luôn xem YouTube
+
+    if LUOT_YAHOO and random.random() < _XS_HOAT_DONG["yahoo"][mi]:
+        pool.append("yahoo")
+    if TIM_KIEM_GOOGLE and random.random() < _XS_HOAT_DONG["google"][mi]:
+        pool.append("google")
+    if LUOT_TWITTER and random.random() < _XS_HOAT_DONG["twitter"][mi]:
+        pool.append("twitter")
+    if so_tin > 0 and random.random() < _XS_HOAT_DONG["news"][mi]:
+        pool.append("news")
+
+    random.shuffle(pool)
+    return pool
+
+
+def _nghi_giua_hoat_dong(driver, mood):
+    """Nghỉ ngẫu nhiên giữa 2 hoạt động — bắt chước cảm xúc người thật."""
+    r = random.random()
+    if r < 0.04:
+        # Người hứng khởi — chuyển ngay không nghỉ
+        delay(0.5, 2.0)
+        return
+    if r < 0.13:
+        # Bị phân tâm (lấy nước, nhìn điện thoại khác, v.v.) — nghỉ dài
+        nghi = random.randint(22, 60)
+        log(f"  ☕ Nghỉ dài {nghi}s...")
+        time.sleep(nghi)
+    else:
+        # Bình thường — nghỉ 3-20s
+        nghi = random.randint(3, 20)
+        log(f"  ⏸ Nghỉ {nghi}s...")
+        time.sleep(nghi)
+    if TU_DONG_DONG_POPUP:
+        dong_popup_tu_dong(driver)
 
 
 # ── Profile runner ────────────────────────────────────────────────
@@ -66,19 +154,21 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
     pid      = profile["id"]
     name     = profile["name"]
     proxy_ip = (profile.get("proxy") or "").split(":")[0] or "no proxy"
-    ket_qua  = {"ok": False, "video": 0, "bai": 0, "ly_do": ""}
+    ket_qua  = {"ok": False, "video": 0, "bai": 0, "yahoo": 0, "google": 0, "twitter": 0, "ly_do": ""}
 
     # ── Draw session personality (1 lần/profile) ──────────────────
     mood = draw_session_mood()
 
     # ── Dynamic video/article count (weighted random) ─────────────
+    _vid_range = list(range(SO_VIDEO_MIN, SO_VIDEO_MAX + 1))
     so_video_session = random.choices(
-        range(SO_VIDEO_MIN, SO_VIDEO_MAX + 1),
-        weights=[10, 20, 30, 25, 15]   # weight về phía 4-5
+        _vid_range,
+        weights=_spread_weights(len(_vid_range), peak_right=True)
     )[0]
+    _tin_range = list(range(SO_TIN_DOC_MIN, SO_TIN_DOC_MAX + 1))
     so_tin_session = random.choices(
-        range(SO_TIN_DOC_MIN, SO_TIN_DOC_MAX + 1),
-        weights=[10, 20, 35, 25, 10]
+        _tin_range,
+        weights=_spread_weights(len(_tin_range), peak_right=False)
     )[0]
 
     log(f"\n{'='*55}")
@@ -113,28 +203,65 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
         if TU_DONG_DONG_POPUP:
             dong_popup_tu_dong(driver)
 
-        if not xu_ly_yeu_cau_dang_nhap(driver):
+        if not xu_ly_yeu_cau_dang_nhap(driver, profile_name=name):
             ket_qua["ly_do"] = "not_logged_in"
             return ket_qua
 
-        # Truyền mood + dynamic count vào xem_youtube
-        so_video_xem = xem_youtube(
-            driver, tu_khoa, so_video_session, MIN_GIAY_XEM, MAX_GIAY_XEM, mood
-        )
-        ket_qua["video"] = so_video_xem
+        # ── Lên kế hoạch session ngẫu nhiên ──────────────────────
+        ke_hoach = _ke_hoach_session(mood, so_tin_session)
+        log(f"    Kế hoạch: {' → '.join(ke_hoach)}")
 
-        if TU_DONG_DONG_POPUP:
-            dong_popup_tu_dong(driver)
+        # ── Thực hiện từng hoạt động theo thứ tự ngẫu nhiên ──────
+        for idx, hoat_dong in enumerate(ke_hoach):
+            # Mid-session: Google có thể đá ra trang login bất kỳ lúc nào
+            if can_kiem_tra_login(driver):
+                creds = GMAIL_ACCOUNTS.get(name, ())
+                if creds and len(creds) == 2:
+                    log(f"  🔐 Bị đăng xuất giữa session — login lại ({hoat_dong})")
+                    if not dang_nhap_google(driver, creds[0], creds[1]):
+                        log("  ❌ Login lại thất bại — dừng session")
+                        break
+                else:
+                    log("  ❌ Bị đăng xuất giữa session, không có credentials — dừng")
+                    break
 
-        nghi = random.randint(5, 15)
-        log(f"  ⏸ Nghỉ {nghi}s trước khi đọc báo...")
-        time.sleep(nghi)
+            if hoat_dong == "yahoo":
+                so_yahoo_session = random.randint(SO_YAHOO_MIN, SO_YAHOO_MAX)
+                ket_qua["yahoo"] = luot_yahoo_japan(driver, so_yahoo_session, mood)
 
-        so_bai_doc = doc_bao(driver, so_tin_session) or 0
-        ket_qua["bai"] = so_bai_doc
+            elif hoat_dong == "google":
+                so_google_session = random.randint(SO_GOOGLE_MIN, SO_GOOGLE_MAX)
+                ket_qua["google"] = tim_kiem_google(driver, so_google_session, mood)
 
-        ket_qua["ok"] = True
-        log(f"  🎉 Hoàn thành [{name}] | {so_video_xem} video | {so_bai_doc} bài")
+            elif hoat_dong == "youtube":
+                ket_qua["video"] = xem_youtube(
+                    driver, tu_khoa, so_video_session,
+                    MIN_GIAY_XEM, MAX_GIAY_XEM, mood
+                )
+
+            elif hoat_dong == "twitter":
+                so_twitter_session = random.randint(SO_TWITTER_MIN, SO_TWITTER_MAX)
+                ket_qua["twitter"] = luot_twitter(driver, so_twitter_session, mood)
+
+            elif hoat_dong == "news":
+                ket_qua["bai"] = doc_bao(driver, so_tin_session) or 0
+
+            # Nghỉ trước hoạt động kế tiếp (không nghỉ sau hoạt động cuối)
+            if idx < len(ke_hoach) - 1:
+                _nghi_giua_hoat_dong(driver, mood)
+        else:
+            # for/else: chỉ chạy khi loop kết thúc tự nhiên (không bị break)
+            ket_qua["ok"] = True
+
+        if ket_qua["ok"]:
+            log(
+                f"  🎉 Hoàn thành [{name}]"
+                f" | video={ket_qua['video']}"
+                f" | bài={ket_qua['bai']}"
+                + (f" | yahoo={ket_qua['yahoo']}" if ket_qua["yahoo"] else "")
+                + (f" | google={ket_qua['google']}" if ket_qua["google"] else "")
+                + (f" | twitter={ket_qua['twitter']}" if ket_qua["twitter"] else "")
+            )
 
     except Exception as e:
         log(f"  ❌ Lỗi: {e}")
@@ -173,7 +300,7 @@ def main():
     log(f"✅ gpmdriver: {gpmdriver_path}\n")
 
     vong        = 0
-    tong_tat_ca = {"ok": 0, "loi": 0, "video": 0, "bai": 0}
+    tong_tat_ca = {"ok": 0, "loi": 0, "video": 0, "bai": 0, "yahoo": 0, "google": 0, "twitter": 0}
 
     while True:
         vong += 1
@@ -198,7 +325,7 @@ def main():
 
         log(f"📋 {len(profiles)} profile: {[p['name'] for p in profiles]}\n")
 
-        stats_vong = {"ok": 0, "loi": 0, "video": 0, "bai": 0, "chi_tiet_loi": []}
+        stats_vong = {"ok": 0, "loi": 0, "video": 0, "bai": 0, "yahoo": 0, "google": 0, "twitter": 0, "chi_tiet_loi": []}
 
         for i, profile in enumerate(profiles, 1):
             log(f"\n▶  [{i}/{len(profiles)}] Profile: {profile['name']}")
@@ -224,9 +351,15 @@ def main():
                 stats_vong["ok"]    += 1
                 stats_vong["video"] += ket_qua.get("video", 0)
                 stats_vong["bai"]   += ket_qua.get("bai", 0)
-                tong_tat_ca["ok"]   += 1
-                tong_tat_ca["video"]+= ket_qua.get("video", 0)
-                tong_tat_ca["bai"]  += ket_qua.get("bai", 0)
+                stats_vong["yahoo"]   += ket_qua.get("yahoo", 0)
+                stats_vong["google"]  += ket_qua.get("google", 0)
+                stats_vong["twitter"] += ket_qua.get("twitter", 0)
+                tong_tat_ca["ok"]    += 1
+                tong_tat_ca["video"] += ket_qua.get("video", 0)
+                tong_tat_ca["bai"]   += ket_qua.get("bai", 0)
+                tong_tat_ca["yahoo"] += ket_qua.get("yahoo", 0)
+                tong_tat_ca["google"] += ket_qua.get("google", 0)
+                tong_tat_ca["twitter"] += ket_qua.get("twitter", 0)
             else:
                 stats_vong["loi"]  += 1
                 tong_tat_ca["loi"] += 1
@@ -267,6 +400,9 @@ def main():
     log(f"    ❌ Tổng lỗi / bỏ  : {tong_tat_ca['loi']} profile")
     log(f"    🎬 Tổng video xem  : {tong_tat_ca['video']} video")
     log(f"    📰 Tổng bài đọc   : {tong_tat_ca['bai']} bài")
+    log(f"    🟡 Tổng Yahoo      : {tong_tat_ca['yahoo']} bài")
+    log(f"    🔍 Tổng Google     : {tong_tat_ca['google']} trang")
+    log(f"    🐦 Tổng Twitter    : {tong_tat_ca['twitter']} bài")
     log("█" * 55)
 
 

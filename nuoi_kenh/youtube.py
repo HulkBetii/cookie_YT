@@ -206,28 +206,31 @@ def thay_toc_do_phat(driver):
         # Chọn tốc độ ngẫu nhiên
         target_speed = random.choice(["1.25", "1.5", "0.75"])
         options = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
+        _speed_was_set = False
         for opt in options:
             if target_speed in (opt.text or ""):
                 driver.execute_script("arguments[0].click();", opt)
                 log(f"    ⚡ Tốc độ {target_speed}×")
                 time.sleep(random.uniform(10, 30))
+                _speed_was_set = True
                 break
 
-        # Đặt lại Normal
-        settings_btn = driver.find_element(By.CSS_SELECTOR, ".ytp-settings-button")
-        driver.execute_script("arguments[0].click();", settings_btn)
-        time.sleep(0.8)
-        items = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
-        for item in items:
-            txt = (item.text or "").lower()
-            if "speed" in txt or "tốc độ" in txt or "再生速度" in txt:
-                driver.execute_script("arguments[0].click();", item)
-                time.sleep(0.5)
-                break
-        for opt in driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem"):
-            if "Normal" in (opt.text or "") or "1×" in (opt.text or "") or "普通" in (opt.text or ""):
-                driver.execute_script("arguments[0].click();", opt)
-                break
+        # Đặt lại Normal — chỉ khi đã đổi tốc độ thành công
+        if _speed_was_set:
+            settings_btn = driver.find_element(By.CSS_SELECTOR, ".ytp-settings-button")
+            driver.execute_script("arguments[0].click();", settings_btn)
+            time.sleep(0.8)
+            items = driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem")
+            for item in items:
+                txt = (item.text or "").lower()
+                if "speed" in txt or "tốc độ" in txt or "再生速度" in txt:
+                    driver.execute_script("arguments[0].click();", item)
+                    time.sleep(0.5)
+                    break
+            for opt in driver.find_elements(By.CSS_SELECTOR, ".ytp-menuitem"):
+                if "Normal" in (opt.text or "") or "1×" in (opt.text or "") or "普通" in (opt.text or ""):
+                    driver.execute_script("arguments[0].click();", opt)
+                    break
     except Exception:
         try:
             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
@@ -447,7 +450,10 @@ def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
             except Exception:
                 pass
 
-        # Hover Subscribe (engaged: 30% click thật)
+        # Hover Subscribe (engaged: 30% click thật) — chỉ khi vẫn đang ở channel page
+        cur = driver.current_url
+        if not any(p in cur for p in ("youtube.com/@", "/channel/", "/user/")):
+            return True
         try:
             sub_btn = driver.find_element(By.CSS_SELECTOR,
                 "#subscribe-button button, ytd-subscribe-button-renderer button")
@@ -891,11 +897,10 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
 
         if not _theater and random.random() < mood.theater_prob:
             try:
-                body = driver.find_element(By.TAG_NAME, "body")
-                body.send_keys("t")   # theater mode
+                driver.find_element(By.TAG_NAME, "body").send_keys("t")  # theater mode
+                _theater = True  # entered theater — mark even if exit fails
                 time.sleep(random.uniform(8, 25))
-                body.send_keys("t")   # exit theater
-                _theater = True
+                driver.find_element(By.TAG_NAME, "body").send_keys("t")  # exit theater
             except Exception:
                 pass
 
@@ -936,22 +941,29 @@ def xem_video_lien_quan(driver, search_url) -> bool:
 
 def _focus_search_box(driver, timeout=30):
     """
-    Chờ search box INTERACTABLE (không chỉ present), rồi JS-click để focus.
-    Timeout 30s để đủ cho proxy Nhật chậm load YouTube homepage.
-    Trả về element hoặc None.
+    Chờ search box INTERACTABLE rồi JS-click focus. Poll nhiều selector để
+    chịu được DOM thay đổi sau popup dismiss hoặc SPA navigation.
     """
-    try:
-        # element_to_be_clickable đảm bảo box visible + enabled
-        o_tim = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.NAME, "search_query"))
-        )
-        # JS click thay vì .click() để tránh ElementClickInterceptedException
-        driver.execute_script("arguments[0].click();", o_tim)
-        time.sleep(random.uniform(0.3, 0.7))
-        o_tim.clear()
-        return o_tim
-    except Exception:
-        return None
+    _SELECTORS = [
+        (By.NAME, "search_query"),          # YouTube homepage + results page
+        (By.ID, "search"),                   # <input id="search"> bên trong ytd-searchbox
+        (By.CSS_SELECTOR, "input.ytSearchboxComponentSearchbox"),  # YouTube 2024+ class
+        (By.CSS_SELECTOR, "input[aria-label*='earch']"),           # aria fallback
+    ]
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for by, sel in _SELECTORS:
+            try:
+                el = driver.find_element(by, sel)
+                if el.is_displayed() and el.is_enabled():
+                    driver.execute_script("arguments[0].click();", el)
+                    time.sleep(random.uniform(0.3, 0.7))
+                    el.clear()
+                    return el
+            except Exception:
+                pass
+        time.sleep(1)
+    return None
 
 
 def _clear_overlays(driver):
@@ -966,8 +978,11 @@ def _clear_overlays(driver):
     except Exception:
         pass
     # Dismiss popup cookie/consent nếu còn
-    from .news import dong_popup_tu_dong
-    dong_popup_tu_dong(driver, lan_thu=1)
+    try:
+        from .news import dong_popup_tu_dong
+        dong_popup_tu_dong(driver, lan_thu=1)
+    except Exception:
+        pass
 
 
 def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
@@ -979,7 +994,7 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
         tk_phu = random.choice(TU_KHOA_LIEN_QUAN)
         log(f"  🔍 Tìm phụ trước: '{tk_phu}'")
         try:
-            o_tim = _focus_search_box(driver, timeout=15)
+            o_tim = _focus_search_box(driver, timeout=20)
             if o_tim:
                 go_co_loi_chinh_ta(o_tim, tk_phu)
                 delay(0.5, 1.5)
@@ -990,8 +1005,10 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
         except Exception:
             pass
 
-    # Tìm kiếm từ khóa chính
-    o_tim = _focus_search_box(driver, timeout=20)
+    # Tìm kiếm từ khóa chính — clear overlay lần 2 (preliminary search / popup có thể để lại state)
+    _clear_overlays(driver)
+    delay(1, 2)
+    o_tim = _focus_search_box(driver, timeout=35)
     if o_tim is None:
         log("  ⚠️ YouTube search box không interactable (proxy chậm/chết)")
         return False
@@ -1022,8 +1039,8 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
     if random.random() < 0.25:
         entry_ok = vao_youtube_qua_google(driver, tu_khoa)
 
-    # Luôn về homepage để đảm bảo trạng thái nhất quán trước cold_start.
-    # Google entry có thể land ở /results hoặc /watch — search box render khác.
+    # Luôn về homepage — cold_start và luot_trang_chu_youtube giả định homepage layout.
+    # Google entry có thể land ở /results hoặc /watch nên vẫn cần navigate về homepage.
     try:
         driver.get("https://www.youtube.com")
         delay(3, 5) if not entry_ok else delay(2, 4)

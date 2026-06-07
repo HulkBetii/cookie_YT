@@ -29,6 +29,39 @@ NEWS_SITES = [
     "https://www.asahi.com",
 ]
 
+# ── Yahoo! Japan ─────────────────────────────────────────────────
+LUOT_YAHOO   = True  # Bật/tắt duyệt Yahoo! Japan
+SO_YAHOO_MIN = 1     # Min bài báo Yahoo mỗi session
+SO_YAHOO_MAX = 3     # Max bài báo Yahoo mỗi session
+
+YAHOO_KEYWORDS = [
+    "日本 ニュース", "天気予報", "経済 最新", "スポーツ ニュース",
+    "エンタメ 話題", "テクノロジー 最新情報", "健康 生活", "グルメ おすすめ",
+]
+
+# ── Google Search ─────────────────────────────────────────────────
+TIM_KIEM_GOOGLE = True  # Bật/tắt tìm kiếm Google
+SO_GOOGLE_MIN   = 1     # Min số lần search mỗi session
+SO_GOOGLE_MAX   = 3     # Max số lần search mỗi session
+
+GOOGLE_KEYWORDS = [
+    "最新ニュース", "おすすめ 映画", "料理 レシピ 簡単",
+    "健康 ダイエット 方法", "旅行 おすすめスポット 日本",
+    "英語 勉強法", "副業 おすすめ", "投資 初心者",
+    "ニュース まとめ", "話題 トレンド",
+]
+
+# ── Twitter ───────────────────────────────────────────────────────
+LUOT_TWITTER   = True  # Bật/tắt duyệt X (Twitter)
+SO_TWITTER_MIN = 1     # Min bài/link đọc mỗi session
+SO_TWITTER_MAX = 3     # Max bài/link đọc mỗi session
+
+TWITTER_KEYWORDS = [
+    "日本 ニュース", "テクノロジー 最新", "ビジネス 話題",
+    "政治 速報", "エンタメ トレンド", "スポーツ 結果",
+    "投資 日本", "起業 おすすめ", "副業 2024",
+]
+
 # ── Vòng lặp ─────────────────────────────────────────────────────
 SO_VONG_LAP         = 0     # 0 = chạy mãi; số > 0 = chạy N vòng
 NGHI_GIUA_VONG_MIN  = 300   # Nghỉ bình thường min (giây) — 5 phút
@@ -60,6 +93,16 @@ TU_KHOA_LIEN_QUAN = [
     "偉人", "名言", "歴史", "成功者", "人生の教え",
     "モチベーション", "自己啓発", "哲学", "人物伝", "教訓",
 ]
+
+# ── Gmail accounts ───────────────────────────────────────────────
+# Key = tên profile trong GPM (profile["name"]).
+# Value = (email, password).
+# Script sẽ tự login khi session cookie hết hạn thay vì bỏ qua profile.
+# Để trống {} nếu tất cả profile đã login sẵn và không bao giờ bị đăng xuất.
+GMAIL_ACCOUNTS: dict = {
+    # "Profile 1": ("account1@gmail.com", "matkhau1"),
+    # "Profile 2": ("account2@gmail.com", "matkhau2"),
+}
 
 # ── Tính năng tự động ────────────────────────────────────────────
 TU_DONG_DONG_POPUP  = True  # Tự động đóng popup cookie/GDPR
