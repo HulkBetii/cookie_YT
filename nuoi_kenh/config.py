@@ -9,16 +9,19 @@ GPM_API_URL     = "http://127.0.0.1:19995"
 GPM_BROWSER_DIR = r"C:\GPM\GPMLogin\gpm_browser"
 
 # ── YouTube ──────────────────────────────────────────────────────
-SO_VIDEO        = 5       # Số video mặc định (tham khảo)
-SO_VIDEO_MIN    = 3       # Min video mỗi session (random weighted)
-SO_VIDEO_MAX    = 7       # Max video mỗi session
+SO_VIDEO        = 4       # Số video mặc định (tham khảo)
+SO_VIDEO_MIN    = 2       # Min video mỗi session (random weighted)
+SO_VIDEO_MAX    = 5       # Max video mỗi session — giảm từ 7 để giảm tải lên
+                          # session/proxy (log thực tế: browser hay crash sau
+                          # video đầu tiên ~1-1.5 phút — phiên ngắn hơn → ít
+                          # cơ hội rơi vào cửa sổ crash hơn)
 MIN_GIAY_XEM    = 60      # Thời gian xem tối thiểu (giây)
 MAX_GIAY_XEM    = 120     # Thời gian xem tối đa (giây)
 
 # ── Tin tức ──────────────────────────────────────────────────────
-SO_TIN_DOC      = 3       # Số bài báo mặc định (tham khảo)
+SO_TIN_DOC      = 2       # Số bài báo mặc định (tham khảo)
 SO_TIN_DOC_MIN  = 0       # Min bài báo mỗi session
-SO_TIN_DOC_MAX  = 4       # Max bài báo mỗi session
+SO_TIN_DOC_MAX  = 3       # Max bài báo mỗi session — giảm tải session
 SU_DUNG_GOOGLE_NEWS = True
 
 NEWS_SITES = [
@@ -32,7 +35,7 @@ NEWS_SITES = [
 # ── Yahoo! Japan ─────────────────────────────────────────────────
 LUOT_YAHOO   = True  # Bật/tắt duyệt Yahoo! Japan
 SO_YAHOO_MIN = 1     # Min bài báo Yahoo mỗi session
-SO_YAHOO_MAX = 3     # Max bài báo Yahoo mỗi session
+SO_YAHOO_MAX = 2     # Max bài báo Yahoo mỗi session — giảm tải session
 
 YAHOO_KEYWORDS = [
     "日本 ニュース", "天気予報", "経済 最新", "スポーツ ニュース",
@@ -42,7 +45,7 @@ YAHOO_KEYWORDS = [
 # ── Google Search ─────────────────────────────────────────────────
 TIM_KIEM_GOOGLE = True  # Bật/tắt tìm kiếm Google
 SO_GOOGLE_MIN   = 1     # Min số lần search mỗi session
-SO_GOOGLE_MAX   = 3     # Max số lần search mỗi session
+SO_GOOGLE_MAX   = 2     # Max số lần search mỗi session — giảm tải session
 
 GOOGLE_KEYWORDS = [
     "最新ニュース", "おすすめ 映画", "料理 レシピ 簡単",
@@ -54,7 +57,7 @@ GOOGLE_KEYWORDS = [
 # ── Twitter ───────────────────────────────────────────────────────
 LUOT_TWITTER   = True  # Bật/tắt duyệt X (Twitter)
 SO_TWITTER_MIN = 1     # Min bài/link đọc mỗi session
-SO_TWITTER_MAX = 3     # Max bài/link đọc mỗi session
+SO_TWITTER_MAX = 2     # Max bài/link đọc mỗi session — giảm tải session
 
 TWITTER_KEYWORDS = [
     "日本 ニュース", "テクノロジー 最新", "ビジネス 話題",
