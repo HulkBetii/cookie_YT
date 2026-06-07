@@ -13,7 +13,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles
+from .selenium_utils import _cho_trang_load, safe_window_handles, selenium_call
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element, go_co_loi_chinh_ta,
@@ -726,7 +726,11 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
     """
     Xem video với tương tác người thật + watchdog.
     mood quyết định xác suất mỗi hành động — không còn hardcode.
-    Trả về True nếu crash.
+    Trả về tuple (crash, da_xem_du):
+      - crash: True nếu browser/connection chết giữa chừng
+      - da_xem_du: True nếu đã xem đủ thời lượng dự kiến (dem >= giay_xem),
+        kể cả khi crash xảy ra NGAY SAU đó (vd. watchdog hậu-kiểm chết) —
+        người dùng đã thực sự xem xong video, không nên tính là "chưa xem"
     """
     tab_video = driver.current_window_handle
     chunk     = max(8, giay_xem // 7)
@@ -913,7 +917,8 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
 
         watchdog_tabs(driver, handles_cho_phep, tab_video)
 
-    return crash
+    da_xem_du = dem >= giay_xem
+    return crash, da_xem_du
 
 
 def xem_video_lien_quan(driver, search_url) -> bool:
@@ -953,8 +958,19 @@ def _focus_search_box(driver, timeout=30):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for by, sel in _SELECTORS:
+            # find_element gọi qua HTTP tới GPMDriver — global read-timeout là 30s,
+            # nên 1 lần proxy chậm có thể khiến lệnh này "treo" tới 30s. Với 4
+            # selector, một vòng quét có thể mất tới 120s, vượt xa `timeout` danh
+            # nghĩa và khiến deadline-check phía trên gần như vô nghĩa. Bọc qua
+            # selenium_call với timeout ngắn để mỗi lần thử bị chặn tối đa vài giây.
             try:
-                el = driver.find_element(by, sel)
+                el = selenium_call(lambda by=by, sel=sel: driver.find_element(by, sel),
+                                   timeout=6, default=None)
+            except Exception:
+                el = None
+            if el is None:
+                continue
+            try:
                 if el.is_displayed() and el.is_enabled():
                     driver.execute_script("arguments[0].click();", el)
                     time.sleep(random.uniform(0.3, 0.7))
@@ -962,6 +978,8 @@ def _focus_search_box(driver, timeout=30):
                     return el
             except Exception:
                 pass
+        if time.time() >= deadline:
+            break
         time.sleep(1)
     return None
 
@@ -1145,11 +1163,13 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             else:
                 log(f"  ▶  [{da_xem+1}/{so_video}] '{tieu_de}' — {giay}s")
 
-            crash = tuong_tac_video_youtube(driver, giay, handles_yt, mood)
+            crash, da_xem_du = tuong_tac_video_youtube(driver, giay, handles_yt, mood)
+            if da_xem_du:
+                # Đã xem đủ thời lượng dự kiến — tính là đã xem dù crash xảy ra
+                # ngay sau đó (vd. watchdog hậu-kiểm phát hiện browser chết)
+                da_xem += 1
             if crash:
                 break
-
-            da_xem += 1
 
             if da_xem < so_video:
                 # Channel visit (mood-based, mutually exclusive với related)
