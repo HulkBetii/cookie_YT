@@ -10,7 +10,7 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, TWITTER_KEYWORDS, TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles
+from .selenium_utils import _cho_trang_load, safe_window_handles, safe_get
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -60,28 +60,9 @@ _X_LOGIN_PATTERNS = ("x.com/i/flow/login", "twitter.com/i/flow/login")
 
 
 # ── Helpers ───────────────────────────────────────────────────────
-
-def _safe_get(driver, url: str, timeout: int = 25) -> bool:
-    """
-    driver.get với page_load_timeout giới hạn ngắn.
-    X.com tải RẤT chậm/hay treo trên proxy Nhật — driver.get() không giới hạn
-    có thể block hàng phút, khiến HTTP connection giữa Selenium↔GPMDriver
-    time out và crash CẢ browser session (không chỉ Twitter).
-    Giới hạn timeout biến lỗi không bắt được (connection timeout) thành
-    TimeoutException có thể catch — bảo vệ session.
-    Trả về True nếu load xong, False nếu timeout/lỗi (browser vẫn sống).
-    """
-    try:
-        driver.set_page_load_timeout(timeout)
-        driver.get(url)
-        return True
-    except Exception:
-        return False
-    finally:
-        try:
-            driver.set_page_load_timeout(60)
-        except Exception:
-            pass
+# _safe_get giờ dùng chung từ selenium_utils (alias để giữ nguyên tên cũ,
+# tránh phải sửa toàn bộ call site trong file này)
+_safe_get = safe_get
 
 
 def _co_login_wall(driver) -> bool:

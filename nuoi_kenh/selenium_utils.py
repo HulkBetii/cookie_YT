@@ -47,6 +47,30 @@ def _cho_trang_load(driver, timeout=15):
         pass
 
 
+def safe_get(driver, url: str, timeout: int = 25) -> bool:
+    """
+    driver.get() với page_load_timeout giới hạn ngắn.
+    Nhiều trang (X.com, YouTube, Yahoo News...) tải RẤT chậm/hay treo trên
+    proxy Nhật — driver.get() không giới hạn có thể block hàng phút, khiến
+    HTTP connection giữa Selenium↔GPMDriver time out và crash CẢ session
+    (ReadTimeoutError/WebDriverException không bắt được ở tầng gọi thường).
+    Đặt page_load_timeout biến lỗi không bắt được (connection timeout)
+    thành TimeoutException có thể catch — bảo vệ session.
+    Trả về True nếu load xong, False nếu timeout/lỗi (browser vẫn sống).
+    """
+    try:
+        driver.set_page_load_timeout(timeout)
+        driver.get(url)
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            driver.set_page_load_timeout(60)
+        except Exception:
+            pass
+
+
 def safe_window_handles(driver, default=None):
     """
     driver.window_handles gọi qua HTTP tới GPMDriver — trên proxy Nhật chậm,
