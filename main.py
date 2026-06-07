@@ -30,7 +30,7 @@ from nuoi_kenh.gpm_api import (
     mo_profile_gpm, dong_profile_gpm, kiem_tra_proxy_nhanh,
 )
 from nuoi_kenh.cdp import cdp_setup
-from nuoi_kenh.human_behavior import delay, draw_session_mood
+from nuoi_kenh.human_behavior import delay, draw_session_mood, kiem_tra_ket_noi
 from nuoi_kenh.news import (
     dong_popup_tu_dong, xu_ly_yeu_cau_dang_nhap, doc_bao,
 )
@@ -273,6 +273,14 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str, tu_khoa: str) -> dict:
 
             elif hoat_dong == "news":
                 ket_qua["bai"] = doc_bao(driver, so_tin_session) or 0
+
+            # Browser đã chết giữa session → dừng ngay, không cố các hoạt
+            # động còn lại (mỗi cái sẽ tự bail "Browser đã đóng" sau vài giây,
+            # nhưng phần nghỉ-giữa-hoạt-động phía dưới vẫn tốn 1-3 phút mỗi
+            # lần — lãng phí khi browser chắc chắn không hồi phục trong session).
+            if not kiem_tra_ket_noi(driver):
+                log(f"  ❌ Browser đã đóng sau '{hoat_dong}' — dừng các hoạt động còn lại")
+                break
 
             # Nghỉ trước hoạt động kế tiếp (không nghỉ sau hoạt động cuối)
             if idx < len(ke_hoach) - 1:
