@@ -6,6 +6,7 @@ Entry point: chạy file này để bắt đầu.
 """
 import sys
 import time
+import datetime
 import random
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
@@ -16,6 +17,7 @@ from nuoi_kenh.config import (
     SO_VONG_LAP, NGHI_GIUA_VONG_MIN, NGHI_GIUA_VONG_MAX,
     NGHI_DAI_XAC_SUAT, NGHI_NGAN_XAC_SUAT,
     NGHI_DAI_MIN, NGHI_DAI_MAX, NGHI_NGAN_MIN, NGHI_NGAN_MAX,
+    KHUNG_GIO_NGHI_DAI, HE_SO_HOAT_DONG_THEO_GIO,
     TRON_PROFILES, DANH_SACH_TU_KHOA, TU_DONG_DONG_POPUP,
     KIEM_TRA_PROXY, THU_LAI_KHI_LOI, LOG_FILE, GPM_BROWSER_DIR,
     LUOT_YAHOO, SO_YAHOO_MIN, SO_YAHOO_MAX,
@@ -41,11 +43,24 @@ from nuoi_kenh.config import GMAIL_ACCOUNTS
 
 
 # ── Keyword rotation ─────────────────────────────────────────────
+# Chọn ngẫu nhiên có "bộ nhớ ngắn hạn" — tránh chu kỳ tuần hoàn dự đoán được
+# (người thật không quan tâm chủ đề theo đúng vòng lặp cố định) và tránh
+# lặp lại ngay từ khóa vừa dùng gần đây.
+_TU_KHOA_GAN_DAY: list = []
+
 
 def lay_tu_khoa(vong: int) -> str:
     if not DANH_SACH_TU_KHOA:
         return "偉人の教え"
-    return DANH_SACH_TU_KHOA[(vong - 1) % len(DANH_SACH_TU_KHOA)]
+    so_nho = min(3, max(1, len(DANH_SACH_TU_KHOA) - 2))
+    ung_vien = [k for k in DANH_SACH_TU_KHOA if k not in _TU_KHOA_GAN_DAY[-so_nho:]]
+    if not ung_vien:
+        ung_vien = DANH_SACH_TU_KHOA
+    chon = random.choice(ung_vien)
+    _TU_KHOA_GAN_DAY.append(chon)
+    if len(_TU_KHOA_GAN_DAY) > so_nho:
+        _TU_KHOA_GAN_DAY.pop(0)
+    return chon
 
 
 # ── Statistics ───────────────────────────────────────────────────
@@ -92,6 +107,17 @@ def _spread_weights(n: int, peak_right: bool = True) -> list:
     return w
 
 
+# ── Circadian rhythm — nhịp sinh học theo giờ trong ngày ──────────
+
+def _he_so_theo_gio(bang: dict, gio: int = None) -> float:
+    """Tra hệ số nhân theo khung giờ hiện tại (giờ địa phương máy chạy)."""
+    gio = datetime.datetime.now().hour if gio is None else gio
+    for (bd, kt), he_so in bang.items():
+        if bd <= gio < kt or (bd > kt and (gio >= bd or gio < kt)):
+            return he_so
+    return 1.0
+
+
 # ── Session planner ───────────────────────────────────────────────
 
 # Xác suất từng hoạt động được chọn vào session, theo mood
@@ -110,16 +136,18 @@ def _ke_hoach_session(mood, so_tin: int) -> list:
     YouTube luôn có mặt; phần còn lại phụ thuộc mood + xác suất.
     """
     mi = {"passive": 0, "normal": 1, "engaged": 2}.get(mood.name, 1)
+    # Ban đêm/giờ làm việc → ít hoạt động phụ hơn; buổi tối → nhiều hơn
+    he_so_gio = _he_so_theo_gio(HE_SO_HOAT_DONG_THEO_GIO)
 
     pool = ["youtube"]   # luôn xem YouTube
 
-    if LUOT_YAHOO and random.random() < _XS_HOAT_DONG["yahoo"][mi]:
+    if LUOT_YAHOO and random.random() < min(0.95, _XS_HOAT_DONG["yahoo"][mi] * he_so_gio):
         pool.append("yahoo")
-    if TIM_KIEM_GOOGLE and random.random() < _XS_HOAT_DONG["google"][mi]:
+    if TIM_KIEM_GOOGLE and random.random() < min(0.95, _XS_HOAT_DONG["google"][mi] * he_so_gio):
         pool.append("google")
-    if LUOT_TWITTER and random.random() < _XS_HOAT_DONG["twitter"][mi]:
+    if LUOT_TWITTER and random.random() < min(0.95, _XS_HOAT_DONG["twitter"][mi] * he_so_gio):
         pool.append("twitter")
-    if so_tin > 0 and random.random() < _XS_HOAT_DONG["news"][mi]:
+    if so_tin > 0 and random.random() < min(0.95, _XS_HOAT_DONG["news"][mi] * he_so_gio):
         pool.append("news")
 
     random.shuffle(pool)
@@ -376,14 +404,19 @@ def main():
         if SO_VONG_LAP > 0 and vong >= SO_VONG_LAP:
             break
 
-        # Session timing variation — người thật không nghỉ đều đặn
+        # Session timing variation — người thật không nghỉ đều đặn,
+        # và càng không nghỉ đều bất kể giờ giấc trong ngày (circadian gate)
+        he_so_nghi = _he_so_theo_gio(KHUNG_GIO_NGHI_DAI)
+        xs_nghi_dai = min(0.95, NGHI_DAI_XAC_SUAT * he_so_nghi)
+
         t = random.random()
-        if t < NGHI_DAI_XAC_SUAT:
-            # 8%: nghỉ dài 2-4 tiếng (đi ngủ / đi làm việc khác)
+        if t < xs_nghi_dai:
+            # Nghỉ dài 2-4 tiếng (đi ngủ / đi làm việc khác) — xác suất
+            # tăng mạnh vào ban đêm (1h-6h) và giảm vào giờ cao điểm tối
             nghi_vong = random.randint(NGHI_DAI_MIN, NGHI_DAI_MAX)
             h = nghi_vong // 3600; m = (nghi_vong % 3600) // 60
             log(f"\n💤 Nghỉ dài {h}h {m}p trước vòng {vong+1}...\n")
-        elif t < NGHI_DAI_XAC_SUAT + NGHI_NGAN_XAC_SUAT:
+        elif t < xs_nghi_dai + NGHI_NGAN_XAC_SUAT:
             # 15%: nghỉ rất ngắn 1-3 phút (xem liên tục)
             nghi_vong = random.randint(NGHI_NGAN_MIN, NGHI_NGAN_MAX)
             log(f"\n⚡ Nghỉ ngắn {nghi_vong}s trước vòng {vong+1}...\n")

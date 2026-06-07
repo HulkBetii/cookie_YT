@@ -77,6 +77,30 @@ NGHI_DAI_MAX       = 14400  # 4 tiếng
 NGHI_NGAN_MIN      = 60
 NGHI_NGAN_MAX      = 180
 
+# ── Nhịp sinh học theo giờ trong ngày (circadian) ─────────────────
+# Hệ số nhân lên xác suất "nghỉ dài" theo khung giờ — mô phỏng giờ ngủ /
+# giờ làm việc của người Nhật. Key = (giờ bắt đầu, giờ kết thúc) khung,
+# theo giờ địa phương của máy chạy. Giá trị càng cao → càng dễ "ngủ/bận".
+KHUNG_GIO_NGHI_DAI = {
+    (1, 6):   8.0,   # 1h-6h: gần như chắc chắn đang ngủ
+    (6, 9):   1.5,   # 6h-9h: chuẩn bị đi làm/học, hoạt động ít
+    (9, 12):  0.6,   # giờ làm việc buổi sáng — ít rảnh nhưng vẫn lướt được
+    (12, 14): 0.3,   # giờ nghỉ trưa — hoạt động cao
+    (14, 19): 0.6,   # giờ làm việc buổi chiều
+    (19, 24): 0.2,   # buổi tối — cao điểm, hiếm khi nghỉ dài
+    (0, 1):   0.4,   # nửa đêm — giảm dần
+}
+# Hệ số nhân lên xác suất tham gia hoạt động phụ (_XS_HOAT_DONG) theo khung giờ
+HE_SO_HOAT_DONG_THEO_GIO = {
+    (1, 6):   0.15,  # ban đêm — nếu có chạy thì cũng lướt rất ít
+    (6, 9):   0.7,
+    (9, 12):  0.85,
+    (12, 14): 1.1,
+    (14, 19): 0.9,
+    (19, 24): 1.2,   # cao điểm buổi tối
+    (0, 1):   0.6,
+}
+
 # ── Từ khóa xoay vòng ────────────────────────────────────────────
 DANH_SACH_TU_KHOA = [
     "偉人の教え",
