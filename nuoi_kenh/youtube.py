@@ -944,10 +944,20 @@ def xem_video_lien_quan(driver, search_url) -> bool:
     return False
 
 
-def _focus_search_box(driver, timeout=30):
+def _focus_search_box(driver, timeout=15):
     """
     Chờ search box INTERACTABLE rồi JS-click focus. Poll nhiều selector để
     chịu được DOM thay đổi sau popup dismiss hoặc SPA navigation.
+
+    LƯU Ý THIẾT KẾ — KHÔNG dùng selenium_call/ThreadPool ở đây:
+    selenium_call(timeout=6) return ngay sau 6s nhưng thread con vẫn tiếp
+    tục chạy (block trên driver.find_element) tới khi socket timeout 30s.
+    GPMDriver xử lý request nối tiếp → 4 selector × 30s = 120s backpressure
+    trong queue — mọi Selenium call từ main thread sau đó đều phải đợi queue
+    drain, gây ra stall 2-4 phút ("zombie thread" effect). Thay bằng gọi
+    trực tiếp: với implicit_wait=0 (default), find_element trả về ngay nếu
+    element không có (NoSuchElementException); nếu browser chết thì lần gọi
+    đầu tiên timeout 30s → exception → thoát nhanh. Không tích lũy zombie.
     """
     _SELECTORS = [
         (By.NAME, "search_query"),          # YouTube homepage + results page
@@ -958,19 +968,8 @@ def _focus_search_box(driver, timeout=30):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for by, sel in _SELECTORS:
-            # find_element gọi qua HTTP tới GPMDriver — global read-timeout là 30s,
-            # nên 1 lần proxy chậm có thể khiến lệnh này "treo" tới 30s. Với 4
-            # selector, một vòng quét có thể mất tới 120s, vượt xa `timeout` danh
-            # nghĩa và khiến deadline-check phía trên gần như vô nghĩa. Bọc qua
-            # selenium_call với timeout ngắn để mỗi lần thử bị chặn tối đa vài giây.
             try:
-                el = selenium_call(lambda by=by, sel=sel: driver.find_element(by, sel),
-                                   timeout=6, default=None)
-            except Exception:
-                el = None
-            if el is None:
-                continue
-            try:
+                el = driver.find_element(by, sel)
                 if el.is_displayed() and el.is_enabled():
                     driver.execute_script("arguments[0].click();", el)
                     time.sleep(random.uniform(0.3, 0.7))
@@ -980,7 +979,7 @@ def _focus_search_box(driver, timeout=30):
                 pass
         if time.time() >= deadline:
             break
-        time.sleep(1)
+        time.sleep(0.5)
     return None
 
 
@@ -1012,7 +1011,7 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
         tk_phu = random.choice(TU_KHOA_LIEN_QUAN)
         log(f"  🔍 Tìm phụ trước: '{tk_phu}'")
         try:
-            o_tim = _focus_search_box(driver, timeout=20)
+            o_tim = _focus_search_box(driver, timeout=12)
             if o_tim:
                 go_co_loi_chinh_ta(o_tim, tk_phu)
                 delay(0.5, 1.5)
@@ -1026,7 +1025,7 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
     # Tìm kiếm từ khóa chính — clear overlay lần 2 (preliminary search / popup có thể để lại state)
     _clear_overlays(driver)
     delay(1, 2)
-    o_tim = _focus_search_box(driver, timeout=35)
+    o_tim = _focus_search_box(driver, timeout=20)
     if o_tim is None:
         log("  ⚠️ YouTube search box không interactable (proxy chậm/chết)")
         return False
