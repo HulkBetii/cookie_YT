@@ -154,6 +154,26 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
             driver.command_executor.client_config.timeout = 30
         except Exception:
             pass
+        # Selenium 4.44.0 creates the urllib3 PoolManager during __init__ using
+        # ClientConfig.timeout at that moment (which may be None if
+        # socket.getdefaulttimeout() was None). The pool is already built by the
+        # time we reach here — setting client_config.timeout above only affects
+        # future pools. We must patch the existing pool so every HTTP call to
+        # GPMDriver has an explicit read timeout; without it, execute_script /
+        # send_keys / WebDriverWait hang forever when Chromium is frozen but
+        # GPMDriver's TCP socket stays alive (keepalive suppresses socket errors).
+        try:
+            from urllib3.util.timeout import Timeout as _Timeout
+            _pool_mgr = driver.command_executor._conn
+            _t = _Timeout(connect=10, read=30)
+            if hasattr(_pool_mgr, 'connection_pool_kw'):
+                _pool_mgr.connection_pool_kw['timeout'] = _t
+            if hasattr(_pool_mgr, 'pools'):
+                for _p in _pool_mgr.pools.values():
+                    if hasattr(_p, 'timeout'):
+                        _p.timeout = _t
+        except Exception:
+            pass
         try:
             driver.execute_cdp_cmd(
                 "Page.addScriptToEvaluateOnNewDocument",

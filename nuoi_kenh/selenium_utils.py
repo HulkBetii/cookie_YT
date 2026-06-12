@@ -6,7 +6,6 @@ Không chứa business logic.
 import socket
 import concurrent.futures
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
 
 # ── Timeout toàn cục ─────────────────────────────────────────────
 socket.setdefaulttimeout(30)
@@ -43,7 +42,9 @@ def _cho_trang_load(driver, timeout=15):
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
-    except TimeoutException:
+    except Exception:
+        # TimeoutException (WebDriverWait expired) OR WebDriverException
+        # (urllib3 read timeout fired when Chromium is frozen mid-execute_script)
         pass
 
 
