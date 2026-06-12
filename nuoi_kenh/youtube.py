@@ -722,7 +722,7 @@ def luot_trang_chu_youtube(driver):
 
 
 def tuong_tac_video_youtube(driver, giay_xem: int,
-                             handles_cho_phep: set, mood: SessionMood) -> bool:
+                             handles_cho_phep: set, mood: SessionMood) -> tuple:
     """
     Xem video với tương tác người thật + watchdog.
     mood quyết định xác suất mỗi hành động — không còn hardcode.

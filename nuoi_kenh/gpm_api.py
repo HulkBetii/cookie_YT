@@ -169,7 +169,7 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
             if hasattr(_pool_mgr, 'connection_pool_kw'):
                 _pool_mgr.connection_pool_kw['timeout'] = _t
             if hasattr(_pool_mgr, 'pools'):
-                for _p in _pool_mgr.pools.values():
+                for _p in list(_pool_mgr.pools.values()):
                     if hasattr(_p, 'timeout'):
                         _p.timeout = _t
         except Exception:

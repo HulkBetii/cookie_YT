@@ -408,7 +408,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             _cho_trang_load(driver, timeout=15)
             url_sau = driver.current_url
 
-            if url_sau == url_truoc or "yahoo.co.jp" not in url_sau:
+            if url_sau == url_truoc or not url_sau.startswith("http"):
                 delay(1, 2)
                 continue
 

@@ -361,7 +361,6 @@ def doc_bao(driver, so_bai: int) -> int:
             log(f"  📖 [{da_doc+1}/{so_bai}] {site}")
             if not safe_get(driver, site, timeout=20):
                 log(f"  ⚠️ Timeout vào {site}, thử trang khác...")
-                da_doc += 1
                 continue
             delay(2, 5)
             cuon_tu_nhien(driver, "xuong", random.randint(3, 6))
