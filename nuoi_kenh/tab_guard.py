@@ -15,6 +15,8 @@ def la_url_quang_cao(url: str) -> bool:
         return True
     if url.startswith("data:"):
         return True
+    if url.startswith("chrome-extension://"):
+        return True
     url_lower = url.lower()
     if url_lower in ("about:blank", "about:newtab", "about:home"):
         return True

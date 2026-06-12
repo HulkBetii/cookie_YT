@@ -28,11 +28,20 @@ _YAHOO_NEWS_HOME = "https://news.yahoo.co.jp"
 
 # Bài báo — ưu tiên href-pattern (bền vững hơn class name)
 _YJ_ARTICLE_SELECTORS = [
+    # Absolute URL — ổn định nhất
     "a[href*='news.yahoo.co.jp/articles/']",
     "a[href*='news.yahoo.co.jp/pickup/']",
-    "li.newsFeed_item a[href*='news.yahoo.co.jp']",
-    ".newsFeed_item_title a",
-    "article a[href*='news.yahoo.co.jp']",
+    # Relative path — Yahoo đôi khi dùng relative href
+    "a[href^='/articles/']",
+    "a[href^='/pickup/']",
+    # Container-based (DOM 2024-2025)
+    "li.newsFeed_item a",
+    ".newsFeed_item a",
+    ".sc-hhIiOg a",
+    ".Topics_main_tD a",
+    "article a",
+    # Broad fallback: bất kỳ link nào trên trang có /articles/ trong path
+    "a[href*='/articles/']",
 ]
 
 # Hover targets trên homepage (chỉ hover, không click)
@@ -66,14 +75,20 @@ _YJ_SEARCH_BOX = [
 # ── Helpers ───────────────────────────────────────────────────────
 
 def _la_link_bai_yahoo(href: str) -> bool:
-    """Lọc URL — chỉ chấp nhận article/pickup của Yahoo News."""
+    """Lọc URL — chấp nhận article/pickup của Yahoo News (cả absolute lẫn relative)."""
     if not href or href.startswith("javascript") or href == "#":
         return False
     if "rd.listing.yahoo.co.jp" in href:  # shopping/listing ads
         return False
+    # Absolute URL
     if "news.yahoo.co.jp/articles/" in href:
         return True
     if "news.yahoo.co.jp/pickup/" in href:
+        return True
+    # Relative URL (khi đang ở trên news.yahoo.co.jp)
+    if href.startswith("/articles/"):
+        return True
+    if href.startswith("/pickup/"):
         return True
     return False
 
@@ -304,15 +319,50 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
     if TU_DONG_DONG_POPUP:
         dong_popup_tu_dong(driver)
 
-    # Tìm bài — retry tối đa 5 lần nếu danh sách rỗng
+    # Tìm bài — retry tối đa 8 lần, scroll mạnh để trigger lazy-load
     articles = []
-    for _ in range(5):
+    for i in range(8):
         articles = _tim_bai_yahoo(driver)
         if articles:
             break
-        time.sleep(3)
+        time.sleep(2)
         try:
-            driver.execute_script("window.scrollBy(0, 400);")
+            # Scroll dần để kích lazy-load (Yahoo News dùng infinite scroll)
+            scroll_px = 600 if i < 4 else 1200
+            driver.execute_script(f"window.scrollBy(0, {scroll_px});")
+        except Exception:
+            pass
+
+    if not articles:
+        # JS fallback: lấy href trực tiếp từ DOM, bỏ qua WebElement
+        try:
+            hrefs = driver.execute_script(
+                "return Array.from(document.querySelectorAll('a[href]'))"
+                ".map(a=>a.href).filter(h=>h.includes('/articles/')||h.includes('/pickup/'))"
+                ".slice(0,30);"
+            ) or []
+            if hrefs:
+                log(f"  ℹ️ JS fallback: {len(hrefs)} link bài")
+                # Đọc trực tiếp từ href list, không qua WebElement
+                da_doc = 0
+                for href in random.sample(hrefs, min(so_bai, len(hrefs))):
+                    if not kiem_tra_ket_noi(driver):
+                        break
+                    if not safe_get(driver, href, timeout=20):
+                        continue
+                    _cho_trang_load(driver, timeout=15)
+                    delay(2, 4)
+                    _doc_bai_yahoo(driver)
+                    da_doc += 1
+                    log(f"  📖 [{da_doc}/{so_bai}] bài Yahoo xong (JS path)")
+                    if da_doc >= so_bai:
+                        break
+                    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
+                        break
+                    _cho_trang_load(driver, timeout=10)
+                    delay(2, 3)
+                log(f"  ✅ Xong Yahoo! Japan — đọc {da_doc} bài (JS path)")
+                return da_doc
         except Exception:
             pass
 
