@@ -108,6 +108,10 @@ def _tim_bai_yahoo(driver) -> list:
                     pass
             if valids:
                 return valids
+        except WebDriverException as e:
+            msg = str(e).lower()
+            if "timed out" in msg or "connection" in msg or "marionette" in msg:
+                raise  # browser frozen/dead — propagate ngay
         except Exception:
             pass
     return []
@@ -248,6 +252,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
         return 0
 
     # ── Vào trang chủ Yahoo! Japan ───────────────────────────────
+    t_bat_dau = time.time()
     if not safe_get(driver, _YAHOO_HOME, timeout=25):
         log("  ⚠️ Không vào được Yahoo! Japan (timeout/proxy chậm)")
         return 0
@@ -256,6 +261,15 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
         delay(3, 6)
     except Exception as e:
         log(f"  ⚠️ Lỗi sau khi vào Yahoo! Japan: {str(e)[:60]}")
+        return 0
+
+    # Sanity check: proxy có thực sự load được Yahoo không?
+    try:
+        current_url = driver.current_url
+        if "yahoo.co.jp" not in current_url.lower():
+            log(f"  ⚠️ Proxy redirect — không ở Yahoo! Japan: {current_url[:50]}")
+            return 0
+    except Exception:
         return 0
 
     if TU_DONG_DONG_POPUP:
@@ -275,9 +289,12 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
         pass
     delay(1, 3)
 
-    # ── Mood-driven optional behaviors ───────────────────────────
+    # ── Mood-driven optional behaviors (giới hạn 90s từ đầu hàm) ─
+    # Nếu proxy chậm/đang tắt, mỗi call treo 30s — cắt sớm để tránh 15 phút treo
+    _budget_ok = lambda: (time.time() - t_bat_dau) < 90 and kiem_tra_ket_noi(driver)
+
     # Thời tiết: "người tò mò, đọc kỹ" (desc_expand_prob)
-    if random.random() < max(0.30, mood.desc_expand_prob):
+    if _budget_ok() and random.random() < max(0.30, mood.desc_expand_prob):
         try:
             _xem_thoi_tiet(driver, handles_goc)
             don_dep_tab_la(driver, handles_goc)
@@ -285,7 +302,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             pass
 
     # Trending: "dễ bị distract bởi nội dung liên quan" (related_prob)
-    if random.random() < max(0.25, mood.related_prob * 2):
+    if _budget_ok() and random.random() < max(0.25, mood.related_prob * 2):
         try:
             _luot_trending(driver, handles_goc)
             don_dep_tab_la(driver, handles_goc)
@@ -293,7 +310,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             pass
 
     # Search: "tìm kiếm có chủ đích" (channel_visit_prob)
-    if YAHOO_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.7):
+    if _budget_ok() and YAHOO_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.7):
         try:
             kw = random.choice(YAHOO_KEYWORDS)
             _tim_kiem_yahoo(driver, kw)
@@ -306,6 +323,9 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             pass
 
     # ── Vào Yahoo News để đọc bài ────────────────────────────────
+    if not kiem_tra_ket_noi(driver):
+        log("  ❌ Browser crash trước khi vào Yahoo News")
+        return 0
     if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
         log("  ⚠️ Không vào news.yahoo.co.jp (timeout/proxy chậm)")
         return 0

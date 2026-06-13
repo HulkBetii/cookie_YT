@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Bảo vệ tab — phát hiện và đóng tab quảng cáo bật lên."""
 import time
-from selenium.webdriver.support.ui import WebDriverWait
 
 from .config import DOMAINS_QUANG_CAO
 from .logger import log
@@ -42,29 +41,29 @@ def don_dep_tab_la(driver, handles_cho_phep: set, tab_quay_ve: str = None) -> in
     """Đóng tab nằm ngoài handles_cho_phep. Trả về số tab đã đóng."""
     so_dong = 0
     try:
-        handles_hien_tai = set(driver.window_handles)
+        handles_hien_tai = safe_window_handles(driver)
+        if not handles_hien_tai:
+            return 0
         tab_la = handles_hien_tai - handles_cho_phep
         for h in list(tab_la):
             try:
-                driver.switch_to.window(h)
-                url = ""
-                try:
-                    WebDriverWait(driver, 1.5).until(
-                        lambda d: d.current_url not in ("about:blank", "")
-                    )
-                    url = driver.current_url
-                except Exception:
-                    url = driver.current_url
-                log(f"    🚫 Đóng tab lạ [{url[:55]}]")
-                driver.close()
+                ok = selenium_call(lambda h=h: driver.switch_to.window(h), timeout=5)
+                if ok is None:
+                    continue
+                url = selenium_call(lambda: driver.current_url, timeout=5, default="")
+                log(f"    🚫 Đóng tab lạ [{(url or '')[:55]}]")
+                selenium_call(lambda: driver.close(), timeout=5)
                 so_dong += 1
             except Exception:
                 pass
-        con_lai = set(driver.window_handles)
+        con_lai = safe_window_handles(driver)
+        if not con_lai:
+            return so_dong
         if tab_quay_ve and tab_quay_ve in con_lai:
-            driver.switch_to.window(tab_quay_ve)
+            selenium_call(lambda: driver.switch_to.window(tab_quay_ve), timeout=5)
         elif handles_cho_phep & con_lai:
-            driver.switch_to.window(list(handles_cho_phep & con_lai)[0])
+            tab = list(handles_cho_phep & con_lai)[0]
+            selenium_call(lambda t=tab: driver.switch_to.window(t), timeout=5)
     except Exception:
         pass
     if so_dong:

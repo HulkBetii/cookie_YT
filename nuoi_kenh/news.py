@@ -196,6 +196,10 @@ def _tim_bai_google_news(driver) -> list:
                     pass
             if valids:
                 return valids
+        except WebDriverException as e:
+            msg = str(e).lower()
+            if "timed out" in msg or "connection" in msg or "marionette" in msg:
+                raise  # browser frozen/dead — propagate ngay, không thử tiếp selector
         except Exception:
             pass
     return []

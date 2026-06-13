@@ -206,13 +206,18 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
     except StaleElementReferenceException:
         delay(1, 2)
     except (NoSuchWindowException, WebDriverException) as e:
-        if "connection" in str(e).lower() or "marionette" in str(e).lower():
+        msg = str(e).lower()
+        if "connection" in msg or "marionette" in msg or "timed out" in msg:
             log("  ❌ Browser crash (Google Search)")
             raise
         don_dep_tab_la(driver, handles_goc)
         delay(1, 3)
     except Exception as e:
+        msg = str(e).lower()
         log(f"  ⚠️ Lỗi search '{keyword[:20]}': {str(e)[:60]}")
+        if "timed out" in msg or "connection" in msg:
+            # urllib3 ReadTimeout — browser frozen, thoát ngay
+            raise WebDriverException(f"urllib3 timeout trong search: {str(e)[:80]}")
         don_dep_tab_la(driver, handles_goc)
         delay(1, 3)
 
