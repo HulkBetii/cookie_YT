@@ -180,9 +180,9 @@ def _tuong_tac_tweet(driver, tweet_el, mood: SessionMood):
 def _luot_trending_twitter(driver, handles_goc: set) -> bool:
     """Xem trang Trending/Explore — hover hashtag, đôi khi click xem."""
     try:
-        if not _safe_get(driver, _TWITTER_EXPLORE, timeout=45):
+        if not _safe_get(driver, _TWITTER_EXPLORE, timeout=30):
             return False
-        _cho_trang_load(driver, timeout=40)
+        _cho_trang_load(driver, timeout=25)
         delay(2, 5)
 
         for sel in _TRENDING_SELECTORS:
@@ -201,13 +201,13 @@ def _luot_trending_twitter(driver, handles_goc: set) -> bool:
                     topic_text = chosen.text.strip()[:30]
                     log(f"    🔥 Trending: {topic_text}")
                     driver.execute_script("arguments[0].click();", chosen)
-                    _cho_trang_load(driver, timeout=40)
+                    _cho_trang_load(driver, timeout=25)
                     delay(2, 5)
                     cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
                     delay(2, 4)
                     don_dep_tab_la(driver, handles_goc)
                     driver.back()
-                    _cho_trang_load(driver, timeout=30)
+                    _cho_trang_load(driver, timeout=20)
                     delay(1, 2)
                 return True
             except Exception:
@@ -254,11 +254,14 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         return 0
 
     # ── Vào trang chủ X ──────────────────────────────────────────
-    if not _safe_get(driver, _TWITTER_HOME, timeout=45):
+    _t_load = time.time()
+    if not _safe_get(driver, _TWITTER_HOME, timeout=30):
         log("  ⚠️ Không vào được X (timeout/proxy chậm) — bỏ qua Twitter")
         return 0
+    # Proxy đủ nhanh nếu homepage load < 15s; nếu chậm hơn thì bỏ qua optional behaviors
+    _proxy_nhanh = (time.time() - _t_load) < 15
     try:
-        _cho_trang_load(driver, timeout=40)
+        _cho_trang_load(driver, timeout=25)
         delay(3, 6)
     except Exception as e:
         log(f"  ⚠️ Lỗi sau khi vào X: {str(e)[:60]}")
@@ -293,23 +296,24 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
     delay(1, 3)
 
     # ── Mood-driven optional behaviors ───────────────────────────
+    # Bỏ qua nếu proxy chậm (initial load >= 15s) để tránh waste 55s+ khi proxy đang chết
     # Trending: người tò mò (related_prob)
-    if kiem_tra_ket_noi(driver) and random.random() < max(0.30, mood.related_prob * 2):
+    if _proxy_nhanh and kiem_tra_ket_noi(driver) and random.random() < max(0.30, mood.related_prob * 2):
         try:
             _luot_trending_twitter(driver, handles_goc)
             don_dep_tab_la(driver, handles_goc)
         except Exception:
             pass
         # Quay về timeline sau trending
-        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=45):
+        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=30):
             try:
-                _cho_trang_load(driver, timeout=40)
+                _cho_trang_load(driver, timeout=25)
                 delay(2, 4)
             except Exception:
                 pass
 
     # Search: "tìm kiếm có chủ đích" (channel_visit_prob)
-    if kiem_tra_ket_noi(driver) and TWITTER_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.8):
+    if _proxy_nhanh and kiem_tra_ket_noi(driver) and TWITTER_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.8):
         try:
             kw = random.choice(TWITTER_KEYWORDS)
             _tim_kiem_twitter(driver, kw)
@@ -317,9 +321,9 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         except Exception:
             pass
         # Quay về timeline sau search
-        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=45):
+        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=30):
             try:
-                _cho_trang_load(driver, timeout=40)
+                _cho_trang_load(driver, timeout=25)
                 delay(2, 4)
             except Exception:
                 pass
@@ -366,11 +370,10 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
                 pass
 
             url_truoc = driver.current_url
-            if not _safe_get(driver, href, timeout=45):
-                delay(1, 2)
-                continue
+            if not _safe_get(driver, href, timeout=30):
+                break  # proxy chậm/chết — dừng thay vì thử tiếp tốn thêm 30s
 
-            _cho_trang_load(driver, timeout=40)
+            _cho_trang_load(driver, timeout=25)
             url_sau = driver.current_url
 
             if url_sau == url_truoc or not url_sau.startswith("http"):
@@ -383,11 +386,11 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
             don_dep_tab_la(driver, handles_goc)
             try:
                 driver.back()
-                _cho_trang_load(driver, timeout=30)
+                _cho_trang_load(driver, timeout=20)
             except Exception:
-                if _safe_get(driver, _TWITTER_HOME, timeout=45):
+                if _safe_get(driver, _TWITTER_HOME, timeout=30):
                     try:
-                        _cho_trang_load(driver, timeout=40)
+                        _cho_trang_load(driver, timeout=25)
                     except Exception:
                         pass
             delay(2, 3)

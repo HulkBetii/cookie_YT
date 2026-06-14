@@ -151,7 +151,7 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
             if da_doc >= so_click:
                 break
             if not _budget_ok():
-                log("  ⏰ Hết 90s budget Google Search — dừng")
+                log("  ⏰ Hết 150s budget Google Search — dừng")
                 break
             if not kiem_tra_ket_noi(driver):
                 break
