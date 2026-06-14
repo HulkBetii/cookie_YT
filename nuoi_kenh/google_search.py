@@ -101,6 +101,8 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
     Một lần search đầy đủ: gõ → SERP → đọc 1-2 kết quả → quay lại Google.
     Returns số trang đã đọc (0-2).
     """
+    t_start = time.time()
+    _budget_ok = lambda: (time.time() - t_start) < 90  # 90s budget
     da_doc = 0
     try:
         # Tìm search box và gõ từ khóa
@@ -147,6 +149,9 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
 
         for _ in range(so_click * 3):
             if da_doc >= so_click:
+                break
+            if not _budget_ok():
+                log("  ⏰ Hết 90s budget Google Search — dừng")
                 break
             if not kiem_tra_ket_noi(driver):
                 break

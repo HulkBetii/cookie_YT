@@ -294,14 +294,14 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
 
     # ── Mood-driven optional behaviors ───────────────────────────
     # Trending: người tò mò (related_prob)
-    if random.random() < max(0.30, mood.related_prob * 2):
+    if kiem_tra_ket_noi(driver) and random.random() < max(0.30, mood.related_prob * 2):
         try:
             _luot_trending_twitter(driver, handles_goc)
             don_dep_tab_la(driver, handles_goc)
         except Exception:
             pass
         # Quay về timeline sau trending
-        if _safe_get(driver, _TWITTER_HOME, timeout=20):
+        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=20):
             try:
                 _cho_trang_load(driver, timeout=15)
                 delay(2, 4)
@@ -309,7 +309,7 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
                 pass
 
     # Search: "tìm kiếm có chủ đích" (channel_visit_prob)
-    if TWITTER_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.8):
+    if kiem_tra_ket_noi(driver) and TWITTER_KEYWORDS and random.random() < max(0.20, mood.channel_visit_prob * 0.8):
         try:
             kw = random.choice(TWITTER_KEYWORDS)
             _tim_kiem_twitter(driver, kw)
@@ -317,7 +317,7 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         except Exception:
             pass
         # Quay về timeline sau search
-        if _safe_get(driver, _TWITTER_HOME, timeout=20):
+        if kiem_tra_ket_noi(driver) and _safe_get(driver, _TWITTER_HOME, timeout=20):
             try:
                 _cho_trang_load(driver, timeout=15)
                 delay(2, 4)
@@ -403,13 +403,18 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         except StaleElementReferenceException:
             delay(1, 2)
         except (NoSuchWindowException, WebDriverException) as e:
-            if "connection" in str(e).lower() or "marionette" in str(e).lower():
+            msg = str(e).lower()
+            if "connection" in msg or "marionette" in msg or "timed out" in msg:
                 log("  ❌ Browser crash (Twitter)")
                 break
             don_dep_tab_la(driver, handles_goc)
             delay(1, 3)
         except Exception as e:
+            msg = str(e).lower()
             log(f"  ⚠️ Lỗi bài {da_doc + 1}: {str(e)[:60]}")
+            if "timed out" in msg or "connection" in msg:
+                log("  ❌ Browser crash (urllib3 timeout Twitter)")
+                break
             don_dep_tab_la(driver, handles_goc)
             delay(1, 3)
 

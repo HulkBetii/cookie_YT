@@ -331,13 +331,18 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
         except StaleElementReferenceException:
             delay(1, 2)
         except (NoSuchWindowException, WebDriverException) as e:
-            if "connection" in str(e).lower() or "marionette" in str(e).lower():
+            msg = str(e).lower()
+            if "connection" in msg or "marionette" in msg or "timed out" in msg:
                 log("  ❌ Browser crash")
                 break
             don_dep_tab_la(driver, handles_goc)
             delay(1, 3)
         except Exception as e:
+            msg = str(e).lower()
             log(f"  ⚠️ Lỗi bài {da_doc+1}: {str(e)[:60]}")
+            if "timed out" in msg or "connection" in msg:
+                log("  ❌ Browser crash (urllib3 timeout Google News)")
+                break
             don_dep_tab_la(driver, handles_goc)
             delay(1, 3)
 
