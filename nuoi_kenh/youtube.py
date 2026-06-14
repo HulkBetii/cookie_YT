@@ -707,16 +707,23 @@ def cold_start(driver, mood: SessionMood):
 def luot_trang_chu_youtube(driver):
     """Lướt trang chủ YouTube trước khi tìm kiếm."""
     log("  🏠 Lướt trang chủ YouTube...")
+    t0 = time.time()
+    budget_ok = lambda: (time.time() - t0) < 45  # tối đa 45s để không treo
     try:
-        cuon_tu_nhien(driver, "xuong", random.randint(3, 6))
+        cuon_tu_nhien(driver, "xuong", random.randint(2, 3))  # giảm từ 3-6 → 2-3
         delay(1, 3)
+        if not budget_ok():
+            return
         thumbs = driver.find_elements(
             By.CSS_SELECTOR, "ytd-rich-item-renderer, ytd-compact-video-renderer"
         )
         for thumb in random.sample(thumbs, min(3, len(thumbs))):
+            if not budget_ok():
+                break
             hover_element(driver, thumb)
             delay(0.3, 1.2)
-        nghi_ngau_nhien(ty_le=0.3)
+        if budget_ok():
+            nghi_ngau_nhien(ty_le=0.3)
     except Exception:
         pass
 
@@ -1017,8 +1024,8 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
                 delay(0.5, 1.5)
                 o_tim.send_keys(Keys.RETURN)
                 delay(2, 4)
-                cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
-                delay(1, 3)
+                cuon_tu_nhien(driver, "xuong", 2)  # giảm từ 2-4 → 2
+                delay(1, 2)
         except Exception:
             pass
 
@@ -1080,6 +1087,10 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
 
     handles_yt = safe_window_handles(driver)
     luot_trang_chu_youtube(driver)
+
+    if not kiem_tra_ket_noi(driver):
+        log("  ❌ Browser crash sau khi lướt trang chủ YouTube")
+        return 0
 
     # Session-level watch_later flag (chỉ lưu 1 lần/session)
     _saved_watch_later = False
