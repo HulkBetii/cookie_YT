@@ -3,6 +3,9 @@
 import os
 import re
 import time
+import ctypes
+import ctypes.wintypes
+import threading
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -10,6 +13,74 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 
 from .config import GPM_API_URL, GPM_BROWSER_DIR
 from .logger import log
+
+
+# ── Auto-dismiss "Timeout (APP)" dialog ──────────────────────────
+
+_user32 = ctypes.windll.user32
+_BM_CLICK = 0x00F5
+_EnumWinProc   = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+_EnumChildProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+
+
+def _get_win_text(hwnd: int) -> str:
+    n = _user32.GetWindowTextLengthW(hwnd)
+    if n <= 0:
+        return ""
+    buf = ctypes.create_unicode_buffer(n + 1)
+    _user32.GetWindowTextW(hwnd, buf, n + 1)
+    return buf.value
+
+
+def _scan_and_dismiss() -> None:
+    """Quét tất cả cửa sổ, tìm dialog có chứa 'Timeout' và click OK."""
+    dismissed: list[int] = []
+
+    def on_win(hwnd, _):
+        if not _user32.IsWindowVisible(hwnd):
+            return True
+
+        has_timeout = [False]
+
+        def on_child_check(ch, _):
+            if "Timeout" in _get_win_text(ch) or "timeout" in _get_win_text(ch):
+                has_timeout[0] = True
+                return False
+            return True
+
+        _user32.EnumChildWindows(hwnd, _EnumChildProc(on_child_check), 0)
+
+        if not has_timeout[0]:
+            return True
+
+        def on_child_click(ch, _):
+            if _get_win_text(ch) in ("OK", "Ok"):
+                _user32.SendMessageW(ch, _BM_CLICK, 0, 0)
+                dismissed.append(hwnd)
+                log(f"[GPM] ✅ Đã tự động bấm OK trên dialog Timeout")
+                return False
+            return True
+
+        _user32.EnumChildWindows(hwnd, _EnumChildProc(on_child_click), 0)
+        return True
+
+    _user32.EnumWindows(_EnumWinProc(on_win), 0)
+
+
+def _dialog_watcher_loop() -> None:
+    while True:
+        try:
+            _scan_and_dismiss()
+        except Exception:
+            pass
+        time.sleep(0.8)
+
+
+def start_gpm_dialog_watcher() -> None:
+    """Khởi động background thread tự động đóng dialog Timeout (APP)."""
+    t = threading.Thread(target=_dialog_watcher_loop, daemon=True, name="gpm-dialog-watcher")
+    t.start()
+    log("[GPM] 🔄 Dialog watcher đã khởi động (tự động bấm OK khi Timeout)")
 
 
 # ── Tìm gpmdriver ────────────────────────────────────────────────
@@ -144,14 +215,14 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
 
     try:
         driver = webdriver.Chrome(service=service, options=options)
-        driver.set_page_load_timeout(30)
-        driver.set_script_timeout(15)
+        driver.set_page_load_timeout(60)
+        driver.set_script_timeout(30)
         try:
-            driver.command_executor._timeout = 30
+            driver.command_executor._timeout = 60
         except Exception:
             pass
         try:
-            driver.command_executor.client_config.timeout = 30
+            driver.command_executor.client_config.timeout = 60
         except Exception:
             pass
         # Selenium 4.44.0 creates the urllib3 PoolManager during __init__ using
@@ -165,7 +236,7 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
         try:
             from urllib3.util.timeout import Timeout as _Timeout
             _pool_mgr = driver.command_executor._conn
-            _t = _Timeout(connect=10, read=30)
+            _t = _Timeout(connect=15, read=60)
             if hasattr(_pool_mgr, 'connection_pool_kw'):
                 _pool_mgr.connection_pool_kw['timeout'] = _t
             if hasattr(_pool_mgr, 'pools'):
@@ -196,11 +267,11 @@ def kiem_tra_proxy_nhanh(driver, timeout=12) -> bool:
         driver.get("https://www.google.com")
         ok = ("google" in driver.current_url.lower() or
               driver.execute_script("return document.title") != "")
-        driver.set_page_load_timeout(30)
+        driver.set_page_load_timeout(60)
         return ok
     except Exception:
         try:
-            driver.set_page_load_timeout(30)
+            driver.set_page_load_timeout(60)
         except Exception:
             pass
         return False

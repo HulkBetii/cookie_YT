@@ -102,7 +102,7 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
     Returns số trang đã đọc (0-2).
     """
     t_start = time.time()
-    _budget_ok = lambda: (time.time() - t_start) < 90  # 90s budget
+    _budget_ok = lambda: (time.time() - t_start) < 150  # 150s budget (proxy 857ms)
     da_doc = 0
     try:
         # Tìm search box và gõ từ khóa
@@ -123,7 +123,7 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
         delay(0.5, 1.5)
         box.send_keys(Keys.RETURN)
 
-        _cho_trang_load(driver, timeout=15)
+        _cho_trang_load(driver, timeout=40)
         delay(2, 4)
 
         if TU_DONG_DONG_POPUP:
@@ -178,11 +178,11 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
                 pass
 
             url_truoc = driver.current_url
-            if not safe_get(driver, href, timeout=20):
+            if not safe_get(driver, href, timeout=45):
                 delay(1, 2)
                 continue
 
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             url_sau = driver.current_url
 
             if url_sau == url_truoc or not url_sau.startswith("http"):
@@ -195,10 +195,10 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
             don_dep_tab_la(driver, handles_goc)
             try:
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
             except Exception:
-                if safe_get(driver, _GOOGLE_URL, timeout=20):
-                    _cho_trang_load(driver, timeout=15)
+                if safe_get(driver, _GOOGLE_URL, timeout=45):
+                    _cho_trang_load(driver, timeout=40)
                 else:
                     return da_doc
             delay(2, 3)
@@ -249,11 +249,11 @@ def tim_kiem_google(driver, so_lan: int, mood: SessionMood) -> int:
         return 0
 
     # ── Vào Google ────────────────────────────────────────────────
-    if not safe_get(driver, _GOOGLE_URL, timeout=25):
+    if not safe_get(driver, _GOOGLE_URL, timeout=45):
         log("  ⚠️ Không vào được Google (timeout/proxy chậm) — bỏ qua Google Search")
         return 0
     try:
-        _cho_trang_load(driver, timeout=20)
+        _cho_trang_load(driver, timeout=40)
         delay(2, 5)
     except Exception as e:
         log(f"  ⚠️ Lỗi sau khi vào Google: {str(e)[:60]}")

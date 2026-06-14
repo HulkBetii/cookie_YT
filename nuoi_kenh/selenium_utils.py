@@ -8,11 +8,12 @@ import concurrent.futures
 from selenium.webdriver.support.ui import WebDriverWait
 
 # ── Timeout toàn cục ─────────────────────────────────────────────
-socket.setdefaulttimeout(30)
+# Proxy JP 800-900ms latency: page load cần 30-45s → tăng socket timeout lên 60s
+socket.setdefaulttimeout(60)
 
 try:
     from selenium.webdriver.remote.remote_connection import RemoteConnection
-    RemoteConnection._timeout = 30
+    RemoteConnection._timeout = 60
 except Exception:
     pass
 
@@ -36,7 +37,7 @@ def selenium_call(func, *args, timeout=25, default=None):
         raise e
 
 
-def _cho_trang_load(driver, timeout=15):
+def _cho_trang_load(driver, timeout=40):
     """Chờ trang load xong dùng document.readyState."""
     try:
         WebDriverWait(driver, timeout).until(
@@ -48,7 +49,7 @@ def _cho_trang_load(driver, timeout=15):
         pass
 
 
-def safe_get(driver, url: str, timeout: int = 25) -> bool:
+def safe_get(driver, url: str, timeout: int = 45) -> bool:
     """
     driver.get() với page_load_timeout giới hạn ngắn.
     Nhiều trang (X.com, YouTube, Yahoo News...) tải RẤT chậm/hay treo trên
@@ -67,7 +68,7 @@ def safe_get(driver, url: str, timeout: int = 25) -> bool:
         return False
     finally:
         try:
-            driver.set_page_load_timeout(60)
+            driver.set_page_load_timeout(90)
         except Exception:
             pass
 

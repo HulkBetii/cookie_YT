@@ -407,7 +407,7 @@ def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
         hover_element(driver, channel_link)
         delay(0.5, 1.2)
         driver.execute_script("arguments[0].click();", channel_link)
-        _cho_trang_load(driver, timeout=15)
+        _cho_trang_load(driver, timeout=40)
         delay(2, 4)
 
         channel_url = driver.current_url
@@ -439,13 +439,13 @@ def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
                     hover_element(driver, v)
                     delay(0.3, 0.8)
                     driver.execute_script("arguments[0].click();", v)
-                    _cho_trang_load(driver, timeout=15)
+                    _cho_trang_load(driver, timeout=40)
                     delay(2, 4)
                     giay = random.randint(20, 40)
                     log(f"    📺 Xem thêm video channel {giay}s")
                     time.sleep(giay)
                     driver.back()
-                    _cho_trang_load(driver, timeout=10)
+                    _cho_trang_load(driver, timeout=30)
                     delay(1, 3)
             except Exception:
                 pass
@@ -469,17 +469,17 @@ def tham_kenh_youtube(driver, mood: SessionMood, search_url: str = "") -> bool:
 
         # Quay về
         if search_url:
-            safe_get(driver, search_url, timeout=20)
+            safe_get(driver, search_url, timeout=45)
         else:
             driver.back()
-        _cho_trang_load(driver, timeout=12)
+        _cho_trang_load(driver, timeout=35)
         delay(1, 3)
         return True
 
     except Exception as e:
         try:
             if search_url:
-                safe_get(driver, search_url, timeout=20)
+                safe_get(driver, search_url, timeout=45)
             else:
                 driver.back()
         except Exception:
@@ -516,17 +516,17 @@ def mo_thong_bao(driver):
             if notifs and random.random() < 0.20:
                 n = random.choice(notifs[:5])
                 driver.execute_script("arguments[0].click();", n)
-                _cho_trang_load(driver, timeout=15)
+                _cho_trang_load(driver, timeout=40)
                 delay(2, 5)
                 log("    📌 Click notification, xem nhanh")
                 time.sleep(random.randint(15, 45))
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
                 delay(1, 3)
                 # Đảm bảo trở về YouTube sau back() — tránh SPA navigation không đúng
                 if "youtube.com" not in driver.current_url:
-                    safe_get(driver, "https://www.youtube.com", timeout=20)
-                    _cho_trang_load(driver, timeout=15)
+                    safe_get(driver, "https://www.youtube.com", timeout=45)
+                    _cho_trang_load(driver, timeout=40)
                     delay(2, 3)
                 return
         except Exception:
@@ -561,7 +561,7 @@ def rabbit_hole(driver, search_url: str, mood: SessionMood):
         hover_element(driver, chon)
         delay(0.5, 1.0)
         driver.execute_script("arguments[0].click();", chon)
-        _cho_trang_load(driver, timeout=15)
+        _cho_trang_load(driver, timeout=40)
         delay(2, 4)
 
         giay = random.randint(20, 60)
@@ -572,8 +572,8 @@ def rabbit_hole(driver, search_url: str, mood: SessionMood):
         pass
     finally:
         try:
-            safe_get(driver, search_url, timeout=20)
-            _cho_trang_load(driver, timeout=12)
+            safe_get(driver, search_url, timeout=45)
+            _cho_trang_load(driver, timeout=35)
             delay(2, 4)
         except Exception:
             pass
@@ -588,13 +588,13 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
     t_bat_dau = time.time()
     try:
         # Timeout ngắn hơn cho Google (proxy Nhật đôi khi rất chậm)
-        driver.set_page_load_timeout(15)
+        driver.set_page_load_timeout(45)
         try:
             driver.get("https://www.google.com")
         except Exception:
             return False
         finally:
-            driver.set_page_load_timeout(30)
+            driver.set_page_load_timeout(60)
 
         delay(1.5, 3)
 
@@ -628,7 +628,7 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
                 hover_element(driver, r)
                 delay(0.3, 0.8)
                 driver.execute_script("arguments[0].click();", r)
-                _cho_trang_load(driver, timeout=15)
+                _cho_trang_load(driver, timeout=40)
                 delay(1, 3)
                 if "youtube.com" in driver.current_url:
                     log("  🌐 Vào YouTube qua Google Search")
@@ -641,7 +641,7 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
     finally:
         # Đảm bảo timeout được reset
         try:
-            driver.set_page_load_timeout(30)
+            driver.set_page_load_timeout(60)
         except Exception:
             pass
 
@@ -672,10 +672,10 @@ def cold_start(driver, mood: SessionMood):
     elif roll < 0.50:
         # Lướt lịch sử xem trước
         try:
-            safe_get(driver, "https://www.youtube.com/feed/history", timeout=20)
+            safe_get(driver, "https://www.youtube.com/feed/history", timeout=45)
             delay(3, 8)
             cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
-            safe_get(driver, "https://www.youtube.com", timeout=20)
+            safe_get(driver, "https://www.youtube.com", timeout=45)
             delay(2, 4)
         except Exception:
             pass
@@ -1059,7 +1059,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
     # Luôn về homepage — cold_start và luot_trang_chu_youtube giả định homepage layout.
     # Google entry có thể land ở /results hoặc /watch nên vẫn cần navigate về homepage.
     try:
-        if not safe_get(driver, "https://www.youtube.com", timeout=25):
+        if not safe_get(driver, "https://www.youtube.com", timeout=45):
             log("  ❌ Không vào YouTube được: load timeout (proxy chậm/chết)")
             return 0
         delay(3, 5) if not entry_ok else delay(2, 4)
@@ -1106,8 +1106,8 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
                 cur_url = driver.current_url
                 if "results" not in cur_url and "search" not in cur_url:
                     log("  🔙 Quay lại trang tìm kiếm...")
-                    safe_get(driver, search_url, timeout=20)
-                    _cho_trang_load(driver, timeout=15)
+                    safe_get(driver, search_url, timeout=45)
+                    _cho_trang_load(driver, timeout=40)
                     delay(2, 4)
             except Exception:
                 break
@@ -1115,8 +1115,8 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             videos = _cho_ket_qua_tim_kiem(driver, timeout=25)
             if not videos:
                 log(f"  ⚠️ Không tìm thấy video lần #{thu}, thử reload...")
-                safe_get(driver, search_url, timeout=20)
-                _cho_trang_load(driver, timeout=15)
+                safe_get(driver, search_url, timeout=45)
+                _cho_trang_load(driver, timeout=40)
                 delay(3, 6)
                 videos = _cho_ket_qua_tim_kiem(driver, timeout=15)
                 if not videos:
@@ -1135,7 +1135,7 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             time.sleep(0.8)
             don_dep_tab_la(driver, handles_yt)
 
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             delay(2, 4)
 
             if not kiem_tra_ket_noi(driver):
@@ -1187,10 +1187,10 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             handles_yt = safe_window_handles(driver)
             don_dep_tab_la(driver, handles_yt)
             try:
-                if not safe_get(driver, search_url, timeout=20):
+                if not safe_get(driver, search_url, timeout=45):
                     log("  ⚠️ Quay lại trang tìm kiếm timeout — dừng vòng xem")
                     break
-                _cho_trang_load(driver, timeout=15)
+                _cho_trang_load(driver, timeout=40)
                 delay(2, 5)
                 cuon_tu_nhien(driver, "xuong", random.randint(1, 3))
             except Exception:

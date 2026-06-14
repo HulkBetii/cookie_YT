@@ -244,7 +244,7 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
     """Đọc báo từ Google News — mô phỏng hành vi người thật."""
     log(f"  📰 Google News | {so_bai} bài...")
 
-    if not safe_get(driver, "https://news.google.com/", timeout=25):
+    if not safe_get(driver, "https://news.google.com/", timeout=45):
         log("  ⚠️ Không vào Google News (timeout/proxy chậm)")
         return 0
     delay(3, 6)
@@ -298,11 +298,11 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
             delay(0.5, 1.0)
 
             url_truoc = driver.current_url
-            if not safe_get(driver, href_bai, timeout=20):
+            if not safe_get(driver, href_bai, timeout=45):
                 delay(1, 2)
                 continue
 
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             url_sau = driver.current_url
 
             if "news.google.com/home" in url_sau or url_sau == url_truoc:
@@ -316,10 +316,10 @@ def doc_bao_google_news(driver, so_bai: int) -> int:
             don_dep_tab_la(driver, handles_goc)
             try:
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
             except Exception:
-                if safe_get(driver, "https://news.google.com/", timeout=20):
-                    _cho_trang_load(driver, timeout=15)
+                if safe_get(driver, "https://news.google.com/", timeout=45):
+                    _cho_trang_load(driver, timeout=40)
             delay(2, 3)
             don_dep_tab_la(driver, handles_goc)
 
@@ -368,7 +368,7 @@ def doc_bao(driver, so_bai: int) -> int:
         site = random.choice(NEWS_SITES)
         try:
             log(f"  📖 [{da_doc+1}/{so_bai}] {site}")
-            if not safe_get(driver, site, timeout=20):
+            if not safe_get(driver, site, timeout=45):
                 log(f"  ⚠️ Timeout vào {site}, thử trang khác...")
                 continue
             delay(2, 5)
@@ -383,7 +383,7 @@ def doc_bao(driver, so_bai: int) -> int:
                     hover_element(driver, lien_ket)
                     delay(0.3, 0.8)
                     driver.execute_script("arguments[0].click();", lien_ket)
-                    _cho_trang_load(driver, timeout=15)
+                    _cho_trang_load(driver, timeout=40)
                     delay(2, 4)
                     doc_noi_dung_bai(driver)
             except Exception:

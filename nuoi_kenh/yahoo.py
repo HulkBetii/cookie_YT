@@ -151,13 +151,13 @@ def _xem_thoi_tiet(driver, handles_goc: set) -> bool:
                 hover_element(driver, el)
                 delay(0.5, 1.2)
                 driver.execute_script("arguments[0].click();", el)
-                _cho_trang_load(driver, timeout=15)
+                _cho_trang_load(driver, timeout=40)
                 delay(2, 4)
                 cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
                 delay(3, 8)
                 don_dep_tab_la(driver, handles_goc)
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
                 delay(1, 2)
                 log("    🌤 Xem thời tiết Yahoo xong")
                 return True
@@ -170,13 +170,13 @@ def _xem_thoi_tiet(driver, handles_goc: set) -> bool:
             hover_element(driver, el)
             delay(0.5, 1.2)
             driver.execute_script("arguments[0].click();", el)
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             delay(2, 4)
             cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
             delay(3, 8)
             don_dep_tab_la(driver, handles_goc)
             driver.back()
-            _cho_trang_load(driver, timeout=10)
+            _cho_trang_load(driver, timeout=30)
             delay(1, 2)
             log("    🌤 Xem thời tiết Yahoo xong")
             return True
@@ -201,13 +201,13 @@ def _luot_trending(driver, handles_goc: set) -> bool:
                 chosen = random.choice(valids[:5])
                 log(f"    🔥 Trending: {chosen.text.strip()[:30]}")
                 driver.execute_script("arguments[0].click();", chosen)
-                _cho_trang_load(driver, timeout=15)
+                _cho_trang_load(driver, timeout=40)
                 delay(2, 5)
                 cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
                 delay(2, 4)
                 don_dep_tab_la(driver, handles_goc)
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
                 delay(1, 2)
             return True
         except Exception:
@@ -230,7 +230,7 @@ def _tim_kiem_yahoo(driver, keyword: str) -> bool:
             go_co_loi_chinh_ta(box, keyword)
             delay(0.5, 1.5)
             box.send_keys(Keys.RETURN)
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             delay(2, 5)
             cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
             delay(2, 4)
@@ -253,11 +253,11 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
 
     # ── Vào trang chủ Yahoo! Japan ───────────────────────────────
     t_bat_dau = time.time()
-    if not safe_get(driver, _YAHOO_HOME, timeout=25):
+    if not safe_get(driver, _YAHOO_HOME, timeout=45):
         log("  ⚠️ Không vào được Yahoo! Japan (timeout/proxy chậm)")
         return 0
     try:
-        _cho_trang_load(driver, timeout=20)
+        _cho_trang_load(driver, timeout=40)
         delay(3, 6)
     except Exception as e:
         log(f"  ⚠️ Lỗi sau khi vào Yahoo! Japan: {str(e)[:60]}")
@@ -291,7 +291,7 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
 
     # ── Mood-driven optional behaviors (giới hạn 90s từ đầu hàm) ─
     # Nếu proxy chậm/đang tắt, mỗi call treo 30s — cắt sớm để tránh 15 phút treo
-    _budget_ok = lambda: (time.time() - t_bat_dau) < 90 and kiem_tra_ket_noi(driver)
+    _budget_ok = lambda: (time.time() - t_bat_dau) < 150 and kiem_tra_ket_noi(driver)
 
     # Thời tiết: "người tò mò, đọc kỹ" (desc_expand_prob)
     if _budget_ok() and random.random() < max(0.30, mood.desc_expand_prob):
@@ -316,8 +316,8 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             _tim_kiem_yahoo(driver, kw)
             don_dep_tab_la(driver, handles_goc)
             # Quay về trang chủ sau khi search
-            if safe_get(driver, _YAHOO_HOME, timeout=20):
-                _cho_trang_load(driver, timeout=15)
+            if safe_get(driver, _YAHOO_HOME, timeout=45):
+                _cho_trang_load(driver, timeout=40)
                 delay(2, 4)
         except Exception:
             pass
@@ -326,11 +326,11 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
     if not kiem_tra_ket_noi(driver):
         log("  ❌ Browser crash trước khi vào Yahoo News")
         return 0
-    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
+    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=45):
         log("  ⚠️ Không vào news.yahoo.co.jp (timeout/proxy chậm)")
         return 0
     try:
-        _cho_trang_load(driver, timeout=15)
+        _cho_trang_load(driver, timeout=40)
         delay(2, 4)
     except Exception as e:
         log(f"  ⚠️ Lỗi sau khi vào Yahoo News: {str(e)[:60]}")
@@ -368,18 +368,18 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
                 for href in random.sample(hrefs, min(so_bai, len(hrefs))):
                     if not kiem_tra_ket_noi(driver):
                         break
-                    if not safe_get(driver, href, timeout=20):
+                    if not safe_get(driver, href, timeout=45):
                         continue
-                    _cho_trang_load(driver, timeout=15)
+                    _cho_trang_load(driver, timeout=40)
                     delay(2, 4)
                     _doc_bai_yahoo(driver)
                     da_doc += 1
                     log(f"  📖 [{da_doc}/{so_bai}] bài Yahoo xong (JS path)")
                     if da_doc >= so_bai:
                         break
-                    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
+                    if not safe_get(driver, _YAHOO_NEWS_HOME, timeout=45):
                         break
-                    _cho_trang_load(driver, timeout=10)
+                    _cho_trang_load(driver, timeout=30)
                     delay(2, 3)
                 log(f"  ✅ Xong Yahoo! Japan — đọc {da_doc} bài (JS path)")
                 return da_doc
@@ -421,11 +421,11 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             delay(0.5, 1.0)
 
             url_truoc = driver.current_url
-            if not safe_get(driver, href, timeout=20):
+            if not safe_get(driver, href, timeout=45):
                 delay(1, 2)
                 continue
 
-            _cho_trang_load(driver, timeout=15)
+            _cho_trang_load(driver, timeout=40)
             url_sau = driver.current_url
 
             if url_sau == url_truoc or not url_sau.startswith("http"):
@@ -438,10 +438,10 @@ def luot_yahoo_japan(driver, so_bai: int, mood: SessionMood) -> int:
             don_dep_tab_la(driver, handles_goc)
             try:
                 driver.back()
-                _cho_trang_load(driver, timeout=10)
+                _cho_trang_load(driver, timeout=30)
             except Exception:
-                if safe_get(driver, _YAHOO_NEWS_HOME, timeout=20):
-                    _cho_trang_load(driver, timeout=15)
+                if safe_get(driver, _YAHOO_NEWS_HOME, timeout=45):
+                    _cho_trang_load(driver, timeout=40)
             delay(2, 3)
             don_dep_tab_la(driver, handles_goc)
 
