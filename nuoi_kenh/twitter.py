@@ -10,7 +10,12 @@ from selenium.common.exceptions import (
 
 from .config import TU_DONG_DONG_POPUP, TWITTER_KEYWORDS, TU_KHOA_LIEN_QUAN
 from .logger import log
-from .selenium_utils import _cho_trang_load, safe_window_handles, safe_get
+from .selenium_utils import (
+    _cho_trang_load,
+    driver_failure_reason,
+    safe_window_handles,
+    safe_get,
+)
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element,
@@ -383,6 +388,13 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
             delay(2, 4)
             _doc_bai_tu_tweet(driver)
 
+            if not kiem_tra_ket_noi(driver):
+                log(
+                    "  ❌ Browser transport lỗi khi đọc bài Twitter: "
+                    f"{driver_failure_reason(driver)}"
+                )
+                break
+
             don_dep_tab_la(driver, handles_goc)
             try:
                 driver.back()
@@ -408,7 +420,10 @@ def luot_twitter(driver, so_bai: int, mood: SessionMood) -> int:
         except (NoSuchWindowException, WebDriverException) as e:
             msg = str(e).lower()
             if "connection" in msg or "marionette" in msg or "timed out" in msg:
-                log("  ❌ Browser crash (Twitter)")
+                log(
+                    "  ❌ Browser crash (Twitter): "
+                    f"{driver_failure_reason(driver)}"
+                )
                 break
             don_dep_tab_la(driver, handles_goc)
             delay(1, 3)

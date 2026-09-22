@@ -11,7 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
 from .logger import log
-from .selenium_utils import _cho_trang_load
+from .selenium_utils import _cho_trang_load, safe_get
 from .human_behavior import delay, go_co_loi_chinh_ta, hover_element
 
 _GOOGLE_SIGNIN_URL = "https://accounts.google.com/signin"
@@ -183,7 +183,9 @@ def dang_nhap_google(driver, email: str, password: str) -> bool:
     # Nếu chưa ở trang login thì navigate sang
     if not _dang_o_trang_login(cur):
         try:
-            driver.get(_GOOGLE_SIGNIN_URL)
+            if not safe_get(driver, _GOOGLE_SIGNIN_URL, timeout=45):
+                log("  ❌ Không vào được trang đăng nhập")
+                return False
             _cho_trang_load(driver, timeout=20)
             delay(2, 4)
         except Exception as e:

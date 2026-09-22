@@ -4,7 +4,11 @@ import time
 
 from .config import DOMAINS_QUANG_CAO
 from .logger import log
-from .selenium_utils import selenium_call, safe_window_handles
+from .selenium_utils import (
+    focus_content_tab,
+    selenium_call,
+    safe_window_handles,
+)
 from .human_behavior import kiem_tra_ket_noi
 
 
@@ -37,33 +41,85 @@ def _dong_tab_phu(driver, handles_goc):
         pass
 
 
-def don_dep_tab_la(driver, handles_cho_phep: set, tab_quay_ve: str = None) -> int:
+def don_dep_tab_la(driver, handles_cho_phep: set = None, tab_quay_ve: str = None) -> int:
     """Đóng tab nằm ngoài handles_cho_phep. Trả về số tab đã đóng."""
     so_dong = 0
     try:
         handles_hien_tai = safe_window_handles(driver)
         if not handles_hien_tai:
             return 0
+        
+        if handles_cho_phep is None:
+            # Nếu không chỉ định handles_cho_phep, đóng các tab có URL quảng cáo/about:blank
+            for h in list(handles_hien_tai):
+                try:
+                    if len(handles_hien_tai) <= 1:
+                        break
+                    selenium_call(
+                        lambda h=h: driver.switch_to.window(h),
+                        driver=driver,
+                        timeout=5,
+                    )
+                    url = selenium_call(
+                        lambda: driver.current_url,
+                        driver=driver,
+                        timeout=5,
+                        default="",
+                    )
+                    if la_url_quang_cao(url):
+                        log(f"    🚫 Đóng tab lạ [{(url or '')[:55]}]")
+                        selenium_call(
+                            lambda: driver.close(),
+                            driver=driver,
+                            timeout=5,
+                        )
+                        so_dong += 1
+                        handles_hien_tai = safe_window_handles(driver)
+                except Exception:
+                    pass
+            con_lai = safe_window_handles(driver)
+            if con_lai:
+                focus_content_tab(
+                    driver,
+                    preferred_handle=tab_quay_ve,
+                    create_if_missing=False,
+                )
+            return so_dong
+
         tab_la = handles_hien_tai - handles_cho_phep
         for h in list(tab_la):
             try:
-                ok = selenium_call(lambda h=h: driver.switch_to.window(h), timeout=5)
+                ok = selenium_call(
+                    lambda h=h: driver.switch_to.window(h),
+                    driver=driver,
+                    timeout=5,
+                )
                 if ok is None:
                     continue
-                url = selenium_call(lambda: driver.current_url, timeout=5, default="")
+                url = selenium_call(
+                    lambda: driver.current_url,
+                    driver=driver,
+                    timeout=5,
+                    default="",
+                )
                 log(f"    🚫 Đóng tab lạ [{(url or '')[:55]}]")
-                selenium_call(lambda: driver.close(), timeout=5)
+                selenium_call(
+                    lambda: driver.close(),
+                    driver=driver,
+                    timeout=5,
+                )
                 so_dong += 1
             except Exception:
                 pass
         con_lai = safe_window_handles(driver)
         if not con_lai:
             return so_dong
-        if tab_quay_ve and tab_quay_ve in con_lai:
-            selenium_call(lambda: driver.switch_to.window(tab_quay_ve), timeout=5)
-        elif handles_cho_phep & con_lai:
-            tab = list(handles_cho_phep & con_lai)[0]
-            selenium_call(lambda t=tab: driver.switch_to.window(t), timeout=5)
+        preferred = tab_quay_ve if tab_quay_ve in con_lai else None
+        focus_content_tab(
+            driver,
+            preferred_handle=preferred,
+            create_if_missing=False,
+        )
     except Exception:
         pass
     if so_dong:
@@ -134,26 +190,23 @@ def watchdog_tabs(driver, handles_cho_phep: set, tab_hien_tai: str) -> bool:
         return False
 
     handles_hien_tai = selenium_call(
-        lambda: set(driver.window_handles), timeout=15, default=None
+        lambda: set(driver.window_handles),
+        driver=driver,
+        timeout=10,
+        default=None,
     )
     if handles_hien_tai is None:
+        return False
+
+    if not focus_content_tab(
+        driver,
+        preferred_handle=tab_hien_tai,
+        create_if_missing=False,
+    ):
         return False
 
     tab_la = handles_hien_tai - handles_cho_phep
     if tab_la:
         don_dep_tab_la(driver, handles_cho_phep, tab_hien_tai)
-
-    try:
-        current = driver.current_window_handle
-        if current not in handles_cho_phep:
-            driver.close()
-            if tab_hien_tai in driver.window_handles:
-                driver.switch_to.window(tab_hien_tai)
-            elif handles_cho_phep & set(driver.window_handles):
-                driver.switch_to.window(
-                    list(handles_cho_phep & set(driver.window_handles))[0]
-                )
-    except Exception:
-        pass
 
     return kiem_tra_ket_noi(driver)

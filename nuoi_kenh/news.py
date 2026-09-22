@@ -95,9 +95,9 @@ def dong_popup_tu_dong(driver, lan_thu=3):
             try:
                 els = driver.find_elements(
                     By.XPATH,
-                    f"//*[self::button or self::a][contains(translate(normalize-space(.),"
-                    f"'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),"
-                    f"'{txt.upper()}')]"
+                    f"//*[self::button or self::a or @role='button'][translate(normalize-space(.),"
+                    f"'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')"
+                    f"='{txt.upper()}']"
                 )
                 for el in els:
                     if el.is_displayed() and el.is_enabled():
@@ -241,10 +241,10 @@ def doc_noi_dung_bai(driver):
 # ── doc_bao ───────────────────────────────────────────────────────
 
 def doc_bao_google_news(driver, so_bai: int) -> int:
-    """Đọc báo từ Google News — mô phỏng hành vi người thật."""
-    log(f"  📰 Google News | {so_bai} bài...")
+    """Đọc báo từ Google News US — mô phỏng hành vi người thật."""
+    log(f"  📰 Google News US | {so_bai} bài...")
 
-    if not safe_get(driver, "https://news.google.com/", timeout=45):
+    if not safe_get(driver, "https://news.google.com/?hl=en-US&gl=US&ceid=US:en", timeout=45):
         log("  ⚠️ Không vào Google News (timeout/proxy chậm)")
         return 0
     delay(3, 6)

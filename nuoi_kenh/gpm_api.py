@@ -13,6 +13,11 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 
 from .config import GPM_API_URL, GPM_BROWSER_DIR
 from .logger import log
+from .selenium_utils import (
+    configure_driver_transport,
+    safe_get,
+    selenium_call,
+)
 
 
 # ── Auto-dismiss "Timeout (APP)" dialog ──────────────────────────
@@ -106,9 +111,16 @@ def tim_gpmdriver() -> str | None:
 
 # ── GPM Profile API ───────────────────────────────────────────────
 
-def lay_tat_ca_profiles() -> list:
+# ── GPM Profile API v2 ───────────────────────────────────────────
+
+def lay_tat_ca_profiles(page: int = 1, per_page: int = 10000) -> list[dict]:
+    """Lấy danh sách profiles từ GPM-Login qua API v2."""
     try:
-        resp = requests.get(f"{GPM_API_URL}/v2/profiles?limit=100", timeout=10)
+        resp = requests.get(
+            f"{GPM_API_URL}/v2/profiles",
+            params={"page": page, "per_page": per_page},
+            timeout=10
+        )
         data = resp.json()
         return data if isinstance(data, list) else []
     except Exception as e:
@@ -116,11 +128,125 @@ def lay_tat_ca_profiles() -> list:
         return []
 
 
-def dong_profile_gpm(profile_id: str):
+def dong_profile_gpm(profile_id: str) -> bool:
+    """Đóng profile GPM theo profile_id."""
     try:
-        requests.get(f"{GPM_API_URL}/v2/stop?profile_id={profile_id}", timeout=10)
+        resp = requests.get(
+            f"{GPM_API_URL}/v2/stop",
+            params={"profile_id": profile_id},
+            timeout=10
+        )
+        return resp.status_code == 200 and "OK" in resp.text
     except Exception:
-        pass
+        return False
+
+
+def tao_profile_gpm(
+    name: str,
+    proxy: str = "",
+    group: str = "All",
+    canvas: str = "off",
+    font: str = "on",
+    webrtc: str = "on",
+    user_agent: str = "",
+    save_type: str = "local",
+) -> dict | None:
+    """
+    Tạo profile mới trên GPM-Login (API v2).
+    Trả về dict: {"status": bool, "profile_id": str} hoặc None nếu lỗi.
+    """
+    try:
+        params = {
+            "name": name,
+            "group": group,
+            "canvas": canvas,
+            "font": font,
+            "webrtc": webrtc,
+            "save_type": save_type,
+        }
+        if proxy:
+            params["proxy"] = proxy
+        if user_agent:
+            params["user_agent"] = user_agent
+
+        resp = requests.get(f"{GPM_API_URL}/v2/create", params=params, timeout=15)
+        data = resp.json()
+        if isinstance(data, dict) and data.get("status"):
+            log(f"  ✅ Đã tạo profile [{name}] (id: {data.get('profile_id')})")
+            return data
+        log(f"  ❌ Tạo profile thất bại: {data}")
+        return None
+    except Exception as e:
+        log(f"  ❌ Lỗi khi tạo profile: {e}")
+        return None
+
+
+def cap_nhat_profile_gpm(
+    profile_id: str,
+    name: str = None,
+    proxy: str = None,
+    note: str = None,
+) -> bool:
+    """Cập nhật thông tin profile (name, proxy, note)."""
+    try:
+        params = {"id": profile_id}
+        if name is not None:
+            params["name"] = name
+        if proxy is not None:
+            params["proxy"] = proxy
+        if note is not None:
+            params["note"] = note
+
+        resp = requests.get(f"{GPM_API_URL}/v2/update", params=params, timeout=10)
+        return resp.text.strip().lower() == "true"
+    except Exception as e:
+        log(f"  ❌ Lỗi khi cập nhật profile: {e}")
+        return False
+
+
+def cap_nhat_proxy_gpm(profile_id: str, proxy: str = "") -> bool:
+    """Cập nhật nhanh proxy cho profile."""
+    try:
+        resp = requests.get(
+            f"{GPM_API_URL}/v2/update-proxy",
+            params={"id": profile_id, "proxy": proxy},
+            timeout=10
+        )
+        return resp.text.strip().lower() == "true"
+    except Exception as e:
+        log(f"  ❌ Lỗi khi cập nhật proxy: {e}")
+        return False
+
+
+def cap_nhat_note_gpm(profile_id: str, note: str = "") -> bool:
+    """Cập nhật nhanh ghi chú cho profile."""
+    try:
+        resp = requests.get(
+            f"{GPM_API_URL}/v2/update-note",
+            params={"id": profile_id, "note": note},
+            timeout=10
+        )
+        return resp.text.strip().lower() == "true"
+    except Exception as e:
+        log(f"  ❌ Lỗi khi cập nhật note: {e}")
+        return False
+
+
+def xoa_profile_gpm(profile_id: str, mode: int = 2) -> bool:
+    """
+    Xóa profile trên GPM-Login.
+    mode=1: Chỉ xóa trên app; mode=2: Xóa cả folder dữ liệu profile.
+    """
+    try:
+        resp = requests.get(
+            f"{GPM_API_URL}/v2/delete",
+            params={"profile_id": profile_id, "mode": mode},
+            timeout=10
+        )
+        return "OK" in resp.text
+    except Exception as e:
+        log(f"  ❌ Lỗi khi xóa profile: {e}")
+        return False
 
 
 # ── Parse response ────────────────────────────────────────────────
@@ -164,14 +290,27 @@ def _trich_debug_addr(data: dict) -> str | None:
 
 # ── Kết nối Selenium ─────────────────────────────────────────────
 
-def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | None:
+def mo_profile_gpm(
+    profile_id: str,
+    gpmdriver_path: str = None,
+    remote_debug_port: int = None,
+    addination_args: str = None,
+) -> webdriver.Chrome | None:
     """
     Nhờ GPM start profile (GPM lo proxy + fingerprint),
     rồi kết nối Selenium qua remote debugging port.
+    Tự động nhận diện selenium_driver_location do API trả về.
     """
+    params = {"profile_id": profile_id}
+    if remote_debug_port:
+        params["remote_debug_port"] = remote_debug_port
+    if addination_args:
+        params["addination_args"] = addination_args
+
     try:
         resp = requests.get(
-            f"{GPM_API_URL}/v2/start?profile_id={profile_id}",
+            f"{GPM_API_URL}/v2/start",
+            params=params,
             timeout=60
         )
         data = resp.json()
@@ -194,6 +333,13 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
         if gpm_driver and os.path.exists(gpm_driver):
             driver_path = gpm_driver
 
+    if not driver_path:
+        driver_path = tim_gpmdriver()
+
+    if not driver_path:
+        log("  ❌ Không tìm thấy gpmdriver/chromedriver hợp lệ!")
+        return None
+
     log(f"  🔗 Debug: {remote_addr}  |  Driver: {os.path.basename(driver_path)}")
 
     for attempt in range(10):
@@ -215,36 +361,9 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
 
     try:
         driver = webdriver.Chrome(service=service, options=options)
+        configure_driver_transport(driver)
         driver.set_page_load_timeout(60)
         driver.set_script_timeout(30)
-        try:
-            driver.command_executor._timeout = 60
-        except Exception:
-            pass
-        try:
-            driver.command_executor.client_config.timeout = 60
-        except Exception:
-            pass
-        # Selenium 4.44.0 creates the urllib3 PoolManager during __init__ using
-        # ClientConfig.timeout at that moment (which may be None if
-        # socket.getdefaulttimeout() was None). The pool is already built by the
-        # time we reach here — setting client_config.timeout above only affects
-        # future pools. We must patch the existing pool so every HTTP call to
-        # GPMDriver has an explicit read timeout; without it, execute_script /
-        # send_keys / WebDriverWait hang forever when Chromium is frozen but
-        # GPMDriver's TCP socket stays alive (keepalive suppresses socket errors).
-        try:
-            from urllib3.util.timeout import Timeout as _Timeout
-            _pool_mgr = driver.command_executor._conn
-            _t = _Timeout(connect=15, read=60)
-            if hasattr(_pool_mgr, 'connection_pool_kw'):
-                _pool_mgr.connection_pool_kw['timeout'] = _t
-            if hasattr(_pool_mgr, 'pools'):
-                for _p in list(_pool_mgr.pools.values()):
-                    if hasattr(_p, 'timeout'):
-                        _p.timeout = _t
-        except Exception:
-            pass
         try:
             driver.execute_cdp_cmd(
                 "Page.addScriptToEvaluateOnNewDocument",
@@ -262,16 +381,18 @@ def mo_profile_gpm(profile_id: str, gpmdriver_path: str) -> webdriver.Chrome | N
 
 def kiem_tra_proxy_nhanh(driver, timeout=12) -> bool:
     """Load Google để kiểm tra proxy còn sống không."""
-    try:
-        driver.set_page_load_timeout(timeout)
-        driver.get("https://www.google.com")
-        ok = ("google" in driver.current_url.lower() or
-              driver.execute_script("return document.title") != "")
-        driver.set_page_load_timeout(60)
-        return ok
-    except Exception:
-        try:
-            driver.set_page_load_timeout(60)
-        except Exception:
-            pass
+    if not safe_get(driver, "https://www.google.com", timeout=timeout):
         return False
+    url = selenium_call(
+        lambda: driver.current_url,
+        driver=driver,
+        timeout=8,
+        default="",
+    )
+    title = selenium_call(
+        lambda: driver.execute_script("return document.title"),
+        driver=driver,
+        timeout=8,
+        default="",
+    )
+    return "google" in (url or "").lower() or bool(title)

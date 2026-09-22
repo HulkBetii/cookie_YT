@@ -2,6 +2,7 @@
 """Yahoo! Japan — tin tức, thời tiết, trending. Mô phỏng hành vi người Nhật."""
 import time
 import random
+from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import (
@@ -78,19 +79,14 @@ def _la_link_bai_yahoo(href: str) -> bool:
     """Lọc URL — chấp nhận article/pickup của Yahoo News (cả absolute lẫn relative)."""
     if not href or href.startswith("javascript") or href == "#":
         return False
-    if "rd.listing.yahoo.co.jp" in href:  # shopping/listing ads
-        return False
-    # Absolute URL
-    if "news.yahoo.co.jp/articles/" in href:
-        return True
-    if "news.yahoo.co.jp/pickup/" in href:
-        return True
-    # Relative URL (khi đang ở trên news.yahoo.co.jp)
-    if href.startswith("/articles/"):
-        return True
-    if href.startswith("/pickup/"):
-        return True
-    return False
+    parsed = urlparse(href)
+    if parsed.scheme or parsed.netloc:
+        return (
+            parsed.scheme in ("http", "https")
+            and parsed.netloc == "news.yahoo.co.jp"
+            and parsed.path.startswith(("/articles/", "/pickup/"))
+        )
+    return parsed.path.startswith(("/articles/", "/pickup/"))
 
 
 def _tim_bai_yahoo(driver) -> list:

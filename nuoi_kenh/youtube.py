@@ -17,9 +17,9 @@ from .selenium_utils import _cho_trang_load, safe_window_handles, selenium_call,
 from .human_behavior import (
     delay, nghi_ngau_nhien, kiem_tra_ket_noi,
     cuon_tu_nhien, hover_element, go_co_loi_chinh_ta,
-    SessionMood,
+    go_voi_autocomplete, SessionMood,
 )
-from .cdp import cdp_click
+from .cdp import cdp_click, cdp_move_mouse, idle_drift
 from .tab_guard import don_dep_tab_la, watchdog_tabs
 
 # ── Skip ad selectors ─────────────────────────────────────────────
@@ -264,6 +264,129 @@ def fullscreen_va_thoat(driver):
         body.send_keys("f")  # hoặc Escape
     except Exception:
         pass
+
+
+def re_chuot_thanh_timeline(driver):
+    """Rê chuột qua lại trên thanh tiến trình video để xem preview thumbnail."""
+    try:
+        progress_bars = driver.find_elements(By.CSS_SELECTOR, ".ytp-progress-bar, .ytp-progress-bar-container")
+        for bar in progress_bars:
+            if bar.is_displayed():
+                rect = bar.rect
+                x0 = rect.get("x", 0)
+                y0 = rect.get("y", 0)
+                w = rect.get("width", 0)
+                h = rect.get("height", 0)
+                if w > 100:
+                    for _ in range(random.randint(2, 4)):
+                        target_x = x0 + random.uniform(0.1, 0.9) * w
+                        target_y = y0 + h / 2.0
+                        cdp_move_mouse(driver, target_x, target_y, duration_ms=random.randint(300, 700))
+                        time.sleep(random.uniform(0.6, 1.5))
+                    log("    🎞️ Rê chuột xem preview timeline")
+                    break
+    except Exception:
+        pass
+
+
+def mo_rong_binh_luan_tra_loi(driver):
+    """Mở rộng 'Read more' và 'View replies' trong phần comments."""
+    try:
+        read_more_btns = driver.find_elements(
+            By.CSS_SELECTOR,
+            "ytd-comment-view-model #more-button, ytd-comment-renderer #more-button, #expander button"
+        )
+        for btn in random.sample(read_more_btns, min(2, len(read_more_btns))):
+            if btn.is_displayed():
+                hover_element(driver, btn)
+                delay(0.2, 0.5)
+                driver.execute_script("arguments[0].click();", btn)
+                time.sleep(random.uniform(0.5, 1.2))
+
+        if random.random() < 0.30:
+            replies_btns = driver.find_elements(By.CSS_SELECTOR, "ytd-comment-replies-renderer button, #replies button")
+            for btn in random.sample(replies_btns, min(1, len(replies_btns))):
+                if btn.is_displayed():
+                    hover_element(driver, btn)
+                    delay(0.3, 0.8)
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(random.uniform(1.0, 2.0))
+                    log("    💬 Mở rộng câu trả lời bình luận")
+    except Exception:
+        pass
+
+
+def luot_youtube_shorts(driver, so_shorts: int = 4) -> int:
+    """Lướt YouTube Shorts xem ngẫu nhiên giống hành vi người dùng điện thoại/web."""
+    log(f"  📱 Bắt đầu lướt {so_shorts} YouTube Shorts...")
+    da_xem = 0
+    try:
+        safe_get(driver, "https://www.youtube.com/shorts", timeout=40)
+        _cho_trang_load(driver, timeout=30)
+        delay(2, 4)
+
+        if "shorts" not in driver.current_url:
+            log("  ⚠️ Không vào được YouTube Shorts")
+            return 0
+
+        body = driver.find_element(By.TAG_NAME, "body")
+
+        for i in range(so_shorts):
+            if not kiem_tra_ket_noi(driver):
+                break
+
+            giay_xem = random.randint(6, 24)
+            log(f"    ▶ Short [{i+1}/{so_shorts}] — xem {giay_xem}s")
+
+            t_end = time.time() + giay_xem
+            while time.time() < t_end:
+                time.sleep(min(3.0, max(0.5, t_end - time.time())))
+                if random.random() < 0.4:
+                    idle_drift(driver, duration_s=random.uniform(1.0, 2.5))
+
+            if random.random() < 0.15:
+                try:
+                    like_btns = driver.find_elements(
+                        By.CSS_SELECTOR,
+                        "ytd-like-button-renderer button[aria-label*='like'], #like-button button"
+                    )
+                    for b in like_btns:
+                        if b.is_displayed():
+                            hover_element(driver, b)
+                            delay(0.2, 0.5)
+                            driver.execute_script("arguments[0].click();", b)
+                            log("    👍 Like Short")
+                            break
+                except Exception:
+                    pass
+
+            if random.random() < 0.10:
+                try:
+                    cmt_btn = driver.find_element(By.CSS_SELECTOR, "#comments-button button, button[aria-label*='comment']")
+                    if cmt_btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", cmt_btn)
+                        time.sleep(random.uniform(2.0, 4.0))
+                        cuon_tu_nhien(driver, "xuong", random.randint(1, 2))
+                        time.sleep(random.uniform(1.0, 2.5))
+                        close_btn = driver.find_element(By.CSS_SELECTOR, "ytd-engagement-panel-section-list-renderer #visibility-button")
+                        driver.execute_script("arguments[0].click();", close_btn)
+                except Exception:
+                    pass
+
+            da_xem += 1
+
+            if i > 0 and random.random() < 0.05:
+                body.send_keys(Keys.ARROW_UP)
+                time.sleep(random.uniform(2.0, 5.0))
+
+            body.send_keys(Keys.ARROW_DOWN)
+            delay(1.0, 2.5)
+
+        log(f"  ✅ Hoàn thành lướt {da_xem}/{so_shorts} YouTube Shorts")
+        return da_xem
+    except Exception as e:
+        log(f"  ⚠️ Lỗi khi lướt Shorts: {str(e)[:60]}")
+        return da_xem
 
 
 def doc_mo_ta_video(driver):
@@ -587,14 +710,8 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
     """
     t_bat_dau = time.time()
     try:
-        # Timeout ngắn hơn cho Google (proxy Nhật đôi khi rất chậm)
-        driver.set_page_load_timeout(45)
-        try:
-            driver.get("https://www.google.com")
-        except Exception:
+        if not safe_get(driver, "https://www.google.com", timeout=45):
             return False
-        finally:
-            driver.set_page_load_timeout(60)
 
         delay(1.5, 3)
 
@@ -638,12 +755,6 @@ def vao_youtube_qua_google(driver, tu_khoa: str) -> bool:
 
     except Exception:
         return False
-    finally:
-        # Đảm bảo timeout được reset
-        try:
-            driver.set_page_load_timeout(60)
-        except Exception:
-            pass
 
 
 def cold_start(driver, mood: SessionMood):
@@ -833,6 +944,7 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
                     for c_el in random.sample(cmts, min(2, len(cmts))):
                         hover_element(driver, c_el)
                         delay(0.5, 1.5)
+                    mo_rong_binh_luan_tra_loi(driver)
                 except Exception:
                     pass
                 cuon_tu_nhien(driver, "len", random.randint(2, 4))
@@ -856,6 +968,10 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
                     vol = driver.find_element(By.CSS_SELECTOR, ".ytp-volume-panel, .volume-slider")
                     hover_element(driver, vol)
                     delay(0.5, 1.0)
+                    if random.random() < 0.20:
+                        body.send_keys("m")
+                        time.sleep(random.uniform(2.0, 5.0))
+                        body.send_keys("m")
                 except Exception:
                     pass
 
@@ -870,14 +986,19 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
 
             else:
                 driver.execute_script(f"window.scrollBy(0, {random.randint(-100, 200)});")
+                if random.random() < 0.35:
+                    idle_drift(driver, duration_s=random.uniform(1.0, 3.0))
 
         except Exception:
             pass
 
+        # 20% rê chuột xem timeline preview
+        if random.random() < 0.20:
+            re_chuot_thanh_timeline(driver)
+
         nghi_ngau_nhien(ty_le=0.1)
 
         # ── Hành vi một lần/video (check ĐỘC LẬP — dùng if, KHÔNG elif) ──
-        # Mỗi hành vi có xác suất riêng, có thể xảy ra cùng lúc trong 1 video.
         if not _quality_changed and random.random() < mood.quality_change_prob:
             try:
                 doi_chat_luong_video(driver)
@@ -912,6 +1033,15 @@ def tuong_tac_video_youtube(driver, giay_xem: int,
                 _theater = True  # entered theater — mark even if exit fails
                 time.sleep(random.uniform(8, 25))
                 driver.find_element(By.TAG_NAME, "body").send_keys("t")  # exit theater
+            except Exception:
+                pass
+
+        # 10% Miniplayer mode 'i'
+        if random.random() < 0.10:
+            try:
+                driver.find_element(By.TAG_NAME, "body").send_keys("i")
+                time.sleep(random.uniform(3.0, 8.0))
+                driver.find_element(By.TAG_NAME, "body").send_keys("i")
             except Exception:
                 pass
 
@@ -955,16 +1085,6 @@ def _focus_search_box(driver, timeout=15):
     """
     Chờ search box INTERACTABLE rồi JS-click focus. Poll nhiều selector để
     chịu được DOM thay đổi sau popup dismiss hoặc SPA navigation.
-
-    LƯU Ý THIẾT KẾ — KHÔNG dùng selenium_call/ThreadPool ở đây:
-    selenium_call(timeout=6) return ngay sau 6s nhưng thread con vẫn tiếp
-    tục chạy (block trên driver.find_element) tới khi socket timeout 30s.
-    GPMDriver xử lý request nối tiếp → 4 selector × 30s = 120s backpressure
-    trong queue — mọi Selenium call từ main thread sau đó đều phải đợi queue
-    drain, gây ra stall 2-4 phút ("zombie thread" effect). Thay bằng gọi
-    trực tiếp: với implicit_wait=0 (default), find_element trả về ngay nếu
-    element không có (NoSuchElementException); nếu browser chết thì lần gọi
-    đầu tiên timeout 30s → exception → thoát nhanh. Không tích lũy zombie.
     """
     _SELECTORS = [
         (By.NAME, "search_query"),          # YouTube homepage + results page
@@ -995,13 +1115,11 @@ def _clear_overlays(driver):
     Xóa mọi popup/overlay đang block search box trước khi tìm kiếm.
     Gọi ngay trước _focus_search_box để đảm bảo không bị chặn.
     """
-    # Nhập Escape để đóng notification panel, menu, autocomplete
     try:
         driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
         time.sleep(0.3)
     except Exception:
         pass
-    # Dismiss popup cookie/consent nếu còn
     try:
         from .news import dong_popup_tu_dong
         dong_popup_tu_dong(driver, lan_thu=1)
@@ -1011,7 +1129,6 @@ def _clear_overlays(driver):
 
 def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
     """Tìm kiếm trên YouTube, có thể tìm từ khóa phụ trước."""
-    # Xóa overlay trước khi tìm kiếm (notification panel, consent popup, menu)
     _clear_overlays(driver)
 
     if random.random() < 0.35 and TU_KHOA_LIEN_QUAN:
@@ -1020,16 +1137,18 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
         try:
             o_tim = _focus_search_box(driver, timeout=12)
             if o_tim:
-                go_co_loi_chinh_ta(o_tim, tk_phu)
-                delay(0.5, 1.5)
-                o_tim.send_keys(Keys.RETURN)
+                if random.random() < 0.60:
+                    go_voi_autocomplete(o_tim, tk_phu)
+                else:
+                    go_co_loi_chinh_ta(o_tim, tk_phu)
+                    delay(0.5, 1.5)
+                    o_tim.send_keys(Keys.RETURN)
                 delay(2, 4)
-                cuon_tu_nhien(driver, "xuong", 2)  # giảm từ 2-4 → 2
+                cuon_tu_nhien(driver, "xuong", 2)
                 delay(1, 2)
         except Exception:
             pass
 
-    # Tìm kiếm từ khóa chính — clear overlay lần 2 (preliminary search / popup có thể để lại state)
     _clear_overlays(driver)
     delay(1, 2)
     o_tim = _focus_search_box(driver, timeout=20)
@@ -1039,9 +1158,12 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
     try:
         hover_element(driver, o_tim)
         delay(0.2, 0.5)
-        go_co_loi_chinh_ta(o_tim, tu_khoa)
-        delay(0.5, 1.5)
-        o_tim.send_keys(Keys.RETURN)
+        if random.random() < 0.65:
+            go_voi_autocomplete(o_tim, tu_khoa)
+        else:
+            go_co_loi_chinh_ta(o_tim, tu_khoa)
+            delay(0.5, 1.5)
+            o_tim.send_keys(Keys.RETURN)
         delay(2, 5)
         return True
     except Exception as e:
@@ -1084,6 +1206,10 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
 
     # Cold start — warm-up behavior trước khi bắt đầu task
     cold_start(driver, mood)
+
+    if not kiem_tra_ket_noi(driver):
+        log("  ❌ Browser crash trong cold start YouTube")
+        return 0
 
     handles_yt = safe_window_handles(driver)
     luot_trang_chu_youtube(driver)
@@ -1224,5 +1350,10 @@ def xem_youtube(driver, tu_khoa: str, so_video: int,
             log(f"  ⚠️ Lỗi video #{thu}: {str(e)[:80]}")
             delay(2, 4)
 
-    log(f"  ✅ Đã xem {da_xem}/{so_video} video")
+    if da_xem == so_video:
+        log(f"  ✅ Đã xem {da_xem}/{so_video} video")
+    elif da_xem > 0:
+        log(f"  ⚠️ Chỉ xem được {da_xem}/{so_video} video")
+    else:
+        log(f"  ❌ Không xem được video nào (0/{so_video})")
     return da_xem

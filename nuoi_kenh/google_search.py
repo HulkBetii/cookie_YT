@@ -24,51 +24,87 @@ from .tab_guard import don_dep_tab_la
 from .news import dong_popup_tu_dong
 
 # ── URLs ──────────────────────────────────────────────────────────
-_GOOGLE_URL = "https://www.google.co.jp"
+_GOOGLE_URL = "https://www.google.com/?hl=en"
 
 # ── Selectors ─────────────────────────────────────────────────────
 
 # Organic result links — ordered by stability
 _GG_RESULT_SELECTORS = [
-    "#search a[href]",     # main results container
-    "#rso a[href]",        # result snippet area
-    "div.g a[href]",       # classic result cards
-    "h3 a[href]",          # result title links
+    "a[href*='/goto?url=']",
+    "a[href*='/url?']",
+    "div.MjjYud a[href]",
+    "div.yuRUbf a[href]",
+    "#search a[href]",
+    "#rso a[href]",
+    "div.g a[href]",
+    "a[jsname][href]",
+    "h3 a[href]",
 ]
 
 
 # ── Helpers ───────────────────────────────────────────────────────
 
 def _la_link_ket_qua(href: str) -> bool:
-    """Chỉ chấp nhận kết quả organic — loại trừ Google internal và YouTube."""
+    """Chỉ chấp nhận kết quả organic — loại trừ Google internal navigation và YouTube."""
     if not href or href.startswith("javascript") or href == "#":
         return False
     if not href.startswith("http"):
         return False
-    # Loại trừ tất cả domain Google và YouTube
-    for domain in ("google.", "youtube.com", "youtu.be"):
-        if domain in href:
+
+    href_lower = href.lower()
+
+    # 1. Chấp nhận Google outbound redirect links (/goto?url= hoặc /url?)
+    if "google." in href_lower:
+        if "/goto?url=" in href_lower or "/url?" in href_lower:
+            return True
+        return False
+
+    # 2. Loại trừ YouTube và các dịch vụ video/internal
+    for domain in ("youtube.com", "youtu.be", "gstatic.com"):
+        if domain in href_lower:
             return False
+
     return True
 
 
 def _tim_ket_qua(driver) -> list:
     """Tìm link kết quả organic trên SERP bằng nhiều selector dự phòng."""
+    if TU_DONG_DONG_POPUP:
+        dong_popup_tu_dong(driver, lan_thu=1)
+
     for sel in _GG_RESULT_SELECTORS:
         try:
             els = driver.find_elements(By.CSS_SELECTOR, sel)
             valids = []
+            seen_hrefs = set()
             for e in els:
                 try:
                     href = e.get_attribute("href") or ""
-                    if _la_link_ket_qua(href) and e.is_displayed():
+                    if not href or href in seen_hrefs:
+                        continue
+                    if _la_link_ket_qua(href):
+                        # Link organic hợp lệ
                         valids.append(e)
+                        seen_hrefs.add(href)
                 except Exception:
                     pass
             if valids:
                 return valids
         except Exception:
             pass
+    return []
+
+
+def wait_for_search_results(driver, timeout: int = 15) -> list:
+    """Wait for async Google SERP rendering instead of document.readyState."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not kiem_tra_ket_noi(driver):
+            return []
+        results = _tim_ket_qua(driver)
+        if results:
+            return results
+        time.sleep(0.5)
     return []
 
 
@@ -122,6 +158,14 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
         go_co_loi_chinh_ta(box, keyword)
         delay(0.5, 1.5)
         box.send_keys(Keys.RETURN)
+        time.sleep(1.5)
+
+        # Nếu chưa chuyển sang trang /search, submit form bằng JS
+        if "/search" not in driver.current_url:
+            try:
+                driver.execute_script("arguments[0].form.submit();", box)
+            except Exception:
+                pass
 
         _cho_trang_load(driver, timeout=40)
         delay(2, 4)
@@ -129,17 +173,25 @@ def _lam_mot_lan_search(driver, keyword: str, handles_goc: set) -> int:
         if TU_DONG_DONG_POPUP:
             dong_popup_tu_dong(driver)
 
+        if not wait_for_search_results(driver, timeout=20):
+            log("  ⚠️ Google chưa render kết quả tìm kiếm sau 20s")
+            return 0
+
         # Scroll SERP — đọc snippet trước khi click
         cuon_tu_nhien(driver, "xuong", random.randint(2, 4))
         nghi_ngau_nhien(ty_le=0.3)
 
-        # Hover qua vài kết quả trước khi chọn
+        # Tương tác với mục "People also ask" nếu có (tín hiệu người dùng thật tìm hiểu sâu)
         try:
-            kets = driver.find_elements(By.CSS_SELECTOR, "h3")
-            for h in random.sample(kets, min(3, len(kets))):
-                if h.is_displayed():
-                    hover_element(driver, h)
-                    delay(0.4, 1.2)
+            paa_questions = driver.find_elements(By.CSS_SELECTOR, "div.related-question-pair, div[jsname='yEVEwb'], div[aria-expanded]")
+            if paa_questions and random.random() < 0.50:
+                q = random.choice(paa_questions[:min(3, len(paa_questions))])
+                if q.is_displayed():
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", q)
+                    delay(0.8, 1.5)
+                    q.click()
+                    delay(1.5, 3.0)
+                    log("    ❓ Mở rộng câu hỏi 'People also ask'")
         except Exception:
             pass
 
@@ -235,14 +287,14 @@ def _chon_keyword() -> str:
         return random.choice(GOOGLE_KEYWORDS)
     if TU_KHOA_LIEN_QUAN:
         return random.choice(TU_KHOA_LIEN_QUAN)
-    return "最新ニュース"
+    return "technology trends 2026"
 
 
 # ── Main function ─────────────────────────────────────────────────
 
 def tim_kiem_google(driver, so_lan: int, mood: SessionMood) -> int:
-    """Tìm kiếm Google co.jp — đọc kết quả organic. Returns # trang đã đọc."""
-    log(f"  🔍 Google Search | {so_lan} lần | mood={mood.name}")
+    """Tìm kiếm Google Search US — đọc kết quả organic. Returns # trang đã đọc."""
+    log(f"  🔍 Google Search US | {so_lan} lần | mood={mood.name}")
 
     if not kiem_tra_ket_noi(driver):
         log("  ❌ Browser đã đóng, bỏ qua Google Search")
