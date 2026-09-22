@@ -11,7 +11,7 @@ export function useTelemetryWebSocket() {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.port === '5173' 
-        ? '127.0.0.1:8000' 
+        ? '127.0.0.1:8088' 
         : window.location.host;
       const url = `${protocol}//${host}/ws/telemetry`;
 

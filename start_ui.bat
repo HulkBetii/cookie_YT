@@ -7,12 +7,12 @@ echo   ⚡ YOUTUBE FARM PRO — CONTROL DASHBOARD (US MARKET)
 echo =======================================================
 echo.
 echo [1/2] Đang khởi động FastAPI Server ^& WebSocket Hub...
-echo [2/2] Tự động mở giao diện tại: http://localhost:8000
+echo [2/2] Tự động mở giao diện tại: http://localhost:8088
 echo.
 echo Nhấn Ctrl+C để dừng server.
 echo =======================================================
 echo.
 
-py -3.12 server/app.py --port 8000 --open
+py -3.12 server/app.py --port 8088 --open
 
 pause

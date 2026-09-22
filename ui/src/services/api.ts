@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { Profile, ProxyCheckResult, FarmConfig, SystemStats } from '../types';
 
-// Dynamic API URL: when served from FastAPI it uses relative origin, otherwise defaults to localhost:8000
+// Dynamic API URL: when served from FastAPI it uses relative origin, otherwise defaults to localhost:8088
 const API_BASE = window.location.port === '5173' 
-  ? 'http://127.0.0.1:8000/api' 
+  ? 'http://127.0.0.1:8088/api' 
   : '/api';
 
 const client = axios.create({

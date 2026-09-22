@@ -3,7 +3,17 @@
 import asyncio
 import os
 import sys
+import threading
+import time
 import webbrowser
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Dict, Any
@@ -258,7 +268,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="YouTube Farm UI Server")
-    parser.add_argument("--port", type=int, default=8000, help="Port to bind server")
+    parser.add_argument("--port", type=int, default=8088, help="Port to bind server")
     parser.add_argument("--open", action="store_true", help="Automatically open UI in default browser")
     args = parser.parse_args()
 
