@@ -17,10 +17,10 @@ _archive/
 *.pwd
 pass script.txt
 
-# IDE
-.vscode/
-.idea/
-*.swp
+# Node / UI
+ui/node_modules/
+ui/dist/
+node_modules/
 
 # OS
 .DS_Store
