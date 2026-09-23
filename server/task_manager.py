@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Thread-safe background Task Manager for controlling automation bots."""
+"""Thread-safe background Task Manager for controlling automation bots with realistic Heuristic Cookie Scoring."""
+import os
+import json
 import datetime
 import threading
 import time
-import random
 from typing import Dict, Any, List, Optional
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
 from nuoi_kenh.gpm_api import lay_tat_ca_profiles, dong_profile_gpm, cap_nhat_proxy_gpm
 from nuoi_kenh.config import MUI_GIO_US, KHUNG_GIO_NGHI_DAI
 from nuoi_kenh.logger import log
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+DATA_DIR.mkdir(exist_ok=True)
+HISTORY_FILE = DATA_DIR / "profile_history.json"
 
 
 class TaskManager:
@@ -18,12 +24,73 @@ class TaskManager:
         self.running_bots: Dict[str, Dict[str, Any]] = {}
         self.global_stats = {
             "total_videos": 0,
+            "total_shorts": 0,
             "total_news": 0,
             "total_maps": 0,
             "total_reddit": 0,
             "total_wiki": 0,
             "total_search": 0,
+            "total_twitter": 0,
+            "total_finance": 0,
         }
+        self.profile_history: Dict[str, Dict[str, Any]] = self._load_profile_history()
+
+    def _load_profile_history(self) -> Dict[str, Dict[str, Any]]:
+        """Tải lịch sử hoạt động của từng profile từ disk."""
+        if HISTORY_FILE.exists():
+            try:
+                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+
+    def _save_profile_history(self):
+        """Lưu lịch sử hoạt động ra file JSON."""
+        try:
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.profile_history, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            log(f"⚠️ Không thể lưu profile history: {e}")
+
+    def calculate_cookie_score(self, pid: str, proxy: str = "") -> int:
+        """
+        Tính điểm Cookie Trust Score Heuristic dựa trên dữ liệu thật:
+        - Base: 65 điểm
+        - Có proxy sống/gán proxy: +10 điểm
+        - Số sessions đã hoàn thành: +3 điểm/session (tối đa +15)
+        - Video & Shorts đã xem: +1.5 điểm/video (tối đa +10)
+        - Đa dạng nền tảng (News, Maps, Reddit, Wiki, Finance, Twitter): +2 điểm mỗi nền tảng (tối đa +12)
+        - Khung giờ hoạt động chuẩn US (6h - 24h EST): +5 điểm
+        - Capped max 99.
+        """
+        score = 65
+        if proxy and len(proxy.strip()) > 6:
+            score += 10
+
+        hist = self.profile_history.get(pid, {})
+        sessions = hist.get("sessions_completed", 0)
+        score += min(15, sessions * 3)
+
+        videos = hist.get("videos_watched", 0) + hist.get("shorts_watched", 0)
+        score += min(10, int(videos * 1.5))
+
+        # Đa dạng nền tảng
+        diversity = 0
+        for act in ["news", "maps", "reddit", "wiki", "finance", "twitter", "search"]:
+            if hist.get(f"{act}_count", 0) > 0:
+                diversity += 2
+        score += min(12, diversity)
+
+        # Circadian bonus
+        try:
+            now_est = datetime.datetime.now(ZoneInfo(MUI_GIO_US))
+            if 6 <= now_est.hour <= 23:
+                score += 5
+        except Exception:
+            pass
+
+        return min(99, max(60, score))
 
     def get_circadian_info(self) -> Dict[str, Any]:
         """Tính toán trạng thái nhịp sinh học theo múi giờ US EST."""
@@ -32,7 +99,6 @@ class TaskManager:
             hour = now_est.hour
             time_str = now_est.strftime("%I:%M %p %Z")
 
-            # Tính multiplier
             multiplier = 1.0
             mode = "NORMAL"
             for (h_start, h_end), mult in KHUNG_GIO_NGHI_DAI.items():
@@ -58,7 +124,7 @@ class TaskManager:
             }
 
     def get_all_profiles_with_status(self) -> List[Dict[str, Any]]:
-        """Lấy danh sách profiles từ GPM và enrich thêm trạng thái runtime."""
+        """Lấy danh sách profiles từ GPM và enrich thêm trạng thái runtime & trust score thật."""
         raw_profiles = lay_tat_ca_profiles()
         enriched = []
         with self.lock:
@@ -66,17 +132,23 @@ class TaskManager:
                 pid = str(p.get("id", ""))
                 pname = str(p.get("name", ""))
                 is_running = pid in self.running_bots and self.running_bots[pid]["status"] == "RUNNING"
-                
+                proxy_str = p.get("proxy") or ""
+
+                score = self.calculate_cookie_score(pid, proxy_str)
+                last_run = self.profile_history.get(pid, {}).get("last_run_time", "Never")
+                if pid in self.running_bots and self.running_bots[pid].get("last_run"):
+                    last_run = self.running_bots[pid]["last_run"]
+
                 info = {
                     "id": pid,
                     "name": pname,
-                    "proxy": p.get("proxy") or "",
+                    "proxy": proxy_str,
                     "note": p.get("note") or "",
                     "is_running": is_running,
                     "current_activity": self.running_bots[pid]["current_activity"] if is_running else "Idle",
                     "current_detail": self.running_bots[pid]["current_detail"] if is_running else "",
-                    "cookie_score": random.randint(85, 98),
-                    "last_run": self.running_bots[pid].get("last_run", "Recently") if pid in self.running_bots else "Never",
+                    "cookie_score": score,
+                    "last_run": last_run,
                     "raw": p
                 }
                 enriched.append(info)
@@ -115,7 +187,7 @@ class TaskManager:
                     "loop": 1,
                     "total_loops": loop_count,
                     "started_at": datetime.datetime.now(),
-                    "stats": {"video": 0, "news": 0, "maps": 0, "reddit": 0, "wiki": 0, "search": 0}
+                    "stats": {"video": 0, "shorts": 0, "news": 0, "maps": 0, "reddit": 0, "wiki": 0, "search": 0, "finance": 0, "twitter": 0}
                 }
                 self.running_bots[pid] = bot_entry
 
@@ -183,15 +255,47 @@ class TaskManager:
                 log(f"\n🚀 [UI Task] Khởi chạy [{name}] - Vòng {vong}/{loop_count if loop_count > 0 else '∞'} | Từ khóa: '{tu_khoa}'")
                 ket_qua = xu_ly_profile(profile, gpmdriver_path=gpmdriver_path, tu_khoa=tu_khoa)
                 
-                # Cập nhật stats
-                if ket_qua and isinstance(ket_qua, dict):
+                # Cập nhật stats & profile history
+                if ket_qua and isinstance(ket_qua, dict) and ket_qua.get("ok"):
                     with self.lock:
                         self.global_stats["total_videos"] += ket_qua.get("video", 0)
+                        self.global_stats["total_shorts"] += ket_qua.get("shorts", 0)
                         self.global_stats["total_news"] += ket_qua.get("bai", 0)
                         self.global_stats["total_maps"] += ket_qua.get("maps", 0)
                         self.global_stats["total_reddit"] += ket_qua.get("reddit", 0)
                         self.global_stats["total_wiki"] += ket_qua.get("wiki", 0)
                         self.global_stats["total_search"] += ket_qua.get("google", 0)
+                        self.global_stats["total_twitter"] += ket_qua.get("twitter", 0)
+                        self.global_stats["total_finance"] += ket_qua.get("finance", 0)
+
+                        # Update persistent history
+                        hist = self.profile_history.setdefault(pid, {
+                            "name": name,
+                            "sessions_completed": 0,
+                            "videos_watched": 0,
+                            "shorts_watched": 0,
+                            "news_count": 0,
+                            "maps_count": 0,
+                            "reddit_count": 0,
+                            "wiki_count": 0,
+                            "search_count": 0,
+                            "finance_count": 0,
+                            "twitter_count": 0,
+                            "last_run_time": ""
+                        })
+                        hist["sessions_completed"] += 1
+                        hist["videos_watched"] += ket_qua.get("video", 0)
+                        hist["shorts_watched"] += ket_qua.get("shorts", 0)
+                        hist["news_count"] += ket_qua.get("bai", 0)
+                        hist["maps_count"] += ket_qua.get("maps", 0)
+                        hist["reddit_count"] += ket_qua.get("reddit", 0)
+                        hist["wiki_count"] += ket_qua.get("wiki", 0)
+                        hist["search_count"] += ket_qua.get("google", 0)
+                        hist["finance_count"] += ket_qua.get("finance", 0)
+                        hist["twitter_count"] += ket_qua.get("twitter", 0)
+                        hist["last_run_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        self._save_profile_history()
+
             except Exception as e:
                 log(f"  ❌ Lỗi worker [{name}]: {e}")
 

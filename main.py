@@ -30,6 +30,7 @@ from nuoi_kenh.config import (
     SU_DUNG_REDDIT, SO_REDDIT_MIN, SO_REDDIT_MAX,
     SU_DUNG_WIKIPEDIA, SO_WIKI_MIN, SO_WIKI_MAX,
     LUOT_TWITTER, SO_TWITTER_MIN, SO_TWITTER_MAX,
+    SU_DUNG_GOOGLE_FINANCE, SO_FINANCE_MIN, SO_FINANCE_MAX,
     MUI_GIO_US, GMAIL_ACCOUNTS,
 )
 from nuoi_kenh.logger import log
@@ -53,6 +54,7 @@ from nuoi_kenh.google_maps import luot_google_maps
 from nuoi_kenh.reddit import luot_reddit
 from nuoi_kenh.wikipedia import luot_wikipedia
 from nuoi_kenh.twitter import luot_twitter
+from nuoi_kenh.google_finance import luot_google_finance
 from nuoi_kenh.gmail_login import can_kiem_tra_login, dang_nhap_google
 
 
@@ -98,6 +100,8 @@ def _in_thong_ke(vong: int, stats: dict, tu_khoa: str, thoi_gian: float):
         log(f"    🔍 Google Search: {stats['google']} trang")
     if stats.get("twitter", 0) > 0:
         log(f"    🐦 Twitter / X  : {stats['twitter']} bài")
+    if stats.get("finance", 0) > 0:
+        log(f"    💹 Google Finance: {stats['finance']} cổ phiếu")
     if stats["chi_tiet_loi"]:
         log("    Chi tiết lỗi:")
         for ten, ly_do in stats["chi_tiet_loi"]:
@@ -138,45 +142,58 @@ def _he_so_theo_gio(bang: dict, gio: int = None) -> float:
 
 MARKOV_TRANSITIONS = {
     "start": {
-        "google": 0.25,
-        "youtube": 0.35,
-        "news": 0.18,
-        "maps": 0.12,
-        "reddit": 0.10,
+        "google": 0.22,
+        "youtube": 0.32,
+        "news": 0.16,
+        "finance": 0.12,
+        "maps": 0.10,
+        "reddit": 0.08,
     },
     "google": {
-        "youtube": 0.38,
-        "news": 0.22,
-        "reddit": 0.18,
-        "wiki": 0.12,
-        "maps": 0.10,
+        "youtube": 0.32,
+        "finance": 0.18,
+        "news": 0.18,
+        "reddit": 0.14,
+        "wiki": 0.10,
+        "maps": 0.08,
     },
     "youtube": {
         "shorts": 0.30,
-        "reddit": 0.25,
-        "google": 0.20,
-        "news": 0.15,
-        "wiki": 0.10,
+        "reddit": 0.22,
+        "google": 0.18,
+        "finance": 0.12,
+        "news": 0.10,
+        "wiki": 0.08,
     },
     "shorts": {
-        "youtube": 0.40,
-        "reddit": 0.25,
+        "youtube": 0.38,
+        "reddit": 0.24,
         "twitter": 0.20,
-        "news": 0.15,
+        "news": 0.10,
+        "finance": 0.08,
     },
     "news": {
-        "google": 0.30,
-        "youtube": 0.25,
-        "reddit": 0.20,
-        "wiki": 0.15,
-        "maps": 0.10,
+        "finance": 0.25,
+        "google": 0.25,
+        "youtube": 0.20,
+        "reddit": 0.15,
+        "wiki": 0.10,
+        "maps": 0.05,
+    },
+    "finance": {
+        "news": 0.30,
+        "google": 0.28,
+        "youtube": 0.22,
+        "reddit": 0.12,
+        "twitter": 0.08,
     },
     "reddit": {
-        "youtube": 0.35,
-        "google": 0.25,
-        "wiki": 0.20,
+        "youtube": 0.32,
+        "google": 0.22,
+        "wiki": 0.18,
+        "finance": 0.10,
         "news": 0.10,
-        "twitter": 0.10,
+        "twitter": 0.08,
     },
     "maps": {
         "google": 0.35,
@@ -191,10 +208,11 @@ MARKOV_TRANSITIONS = {
         "news": 0.15,
     },
     "twitter": {
-        "youtube": 0.40,
-        "reddit": 0.25,
-        "news": 0.20,
-        "google": 0.15,
+        "youtube": 0.35,
+        "finance": 0.20,
+        "reddit": 0.20,
+        "news": 0.15,
+        "google": 0.10,
     },
 }
 
@@ -210,6 +228,7 @@ def _lay_dich_vu_kha_dung(so_tin: int) -> dict:
         "reddit": SU_DUNG_REDDIT,
         "wiki": SU_DUNG_WIKIPEDIA,
         "twitter": LUOT_TWITTER,
+        "finance": SU_DUNG_GOOGLE_FINANCE,
     }
 
 
@@ -309,7 +328,7 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str = None, tu_khoa: str = "") 
     proxy_ip = (profile.get("proxy") or "").split(":")[0] or "no proxy"
     ket_qua  = {
         "ok": False, "video": 0, "shorts": 0, "bai": 0, "google": 0,
-        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "ly_do": ""
+        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0, "ly_do": ""
     }
 
     # ── Draw session personality & archetype ──────────────────────
@@ -439,6 +458,10 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str = None, tu_khoa: str = "") 
                 so_tw = random.randint(SO_TWITTER_MIN, SO_TWITTER_MAX)
                 ket_qua["twitter"] += luot_twitter(driver, so_tw, mood)
 
+            elif hoat_dong == "finance":
+                so_fin = random.randint(SO_FINANCE_MIN, SO_FINANCE_MAX)
+                ket_qua["finance"] += luot_google_finance(driver, so_fin, mood)
+
             elif hoat_dong == "news":
                 ket_qua["bai"] += (doc_bao(driver, random.randint(1, 3)) or 0)
 
@@ -470,6 +493,7 @@ def xu_ly_profile(profile: dict, gpmdriver_path: str = None, tu_khoa: str = "") 
                 + (f" | wiki={ket_qua['wiki']}" if ket_qua["wiki"] else "")
                 + (f" | google={ket_qua['google']}" if ket_qua["google"] else "")
                 + (f" | twitter={ket_qua['twitter']}" if ket_qua["twitter"] else "")
+                + (f" | finance={ket_qua['finance']}" if ket_qua["finance"] else "")
             )
 
     except Exception as e:
@@ -499,16 +523,16 @@ def _chay_profile_co_thu_lai(profile: dict, gpmdriver_path: str, tu_khoa: str) -
         except Exception as e:
             log(f"  ❌ [{name}] Exception không bắt được: {e}")
             ket_qua = {
-                "ok": False, "video": 0, "bai": 0, "google": 0,
-                "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "ly_do": str(e)[:60]
+                "ok": False, "video": 0, "shorts": 0, "bai": 0, "google": 0,
+                "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0, "ly_do": str(e)[:60]
             }
         if ket_qua["ok"]:
             break
         if ket_qua.get("ly_do") in ("proxy_dead", "not_logged_in", "profile_path_not_found"):
             break
     return ket_qua or {
-        "ok": False, "video": 0, "bai": 0, "google": 0,
-        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "ly_do": "no_result"
+        "ok": False, "video": 0, "shorts": 0, "bai": 0, "google": 0,
+        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0, "ly_do": "no_result"
     }
 
 
@@ -538,6 +562,7 @@ def main():
     log(f"🗺️  Google Maps: {'Bật' if SU_DUNG_GOOGLE_MAPS else 'Tắt'}")
     log(f"👽  Reddit US : {'Bật' if SU_DUNG_REDDIT else 'Tắt'}")
     log(f"📚  Wiki EN   : {'Bật' if SU_DUNG_WIKIPEDIA else 'Tắt'}")
+    log(f"💹  Google Finance: {'Bật' if SU_DUNG_GOOGLE_FINANCE else 'Tắt'}")
     log(f"🍪  Auto popup: {'Bật' if TU_DONG_DONG_POPUP else 'Tắt'}")
     log(f"🔍  Proxy check: {'Bật' if KIEM_TRA_PROXY else 'Tắt'}")
     log(f"📝  Log file  : {LOG_FILE or 'Tắt'}")
@@ -553,8 +578,8 @@ def main():
 
     vong        = 0
     tong_tat_ca = {
-        "ok": 0, "loi": 0, "video": 0, "bai": 0, "google": 0,
-        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0
+        "ok": 0, "loi": 0, "video": 0, "shorts": 0, "bai": 0, "google": 0,
+        "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0
     }
 
     while True:
@@ -594,8 +619,8 @@ def main():
         log(f"📋 {len(profiles)} profile: {[p['name'] for p in profiles]}\n")
 
         stats_vong = {
-            "ok": 0, "loi": 0, "video": 0, "bai": 0, "google": 0,
-            "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "chi_tiet_loi": []
+            "ok": 0, "loi": 0, "video": 0, "shorts": 0, "bai": 0, "google": 0,
+            "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0, "chi_tiet_loi": []
         }
 
         if SO_LUONG_CHAY_SONG_SONG <= 1 or len(profiles) <= 1:
@@ -607,21 +632,25 @@ def main():
                 if ket_qua and ket_qua["ok"]:
                     stats_vong["ok"]      += 1
                     stats_vong["video"]   += ket_qua.get("video", 0)
+                    stats_vong["shorts"]  += ket_qua.get("shorts", 0)
                     stats_vong["bai"]     += ket_qua.get("bai", 0)
                     stats_vong["google"]  += ket_qua.get("google", 0)
                     stats_vong["maps"]    += ket_qua.get("maps", 0)
                     stats_vong["reddit"]  += ket_qua.get("reddit", 0)
                     stats_vong["wiki"]    += ket_qua.get("wiki", 0)
                     stats_vong["twitter"] += ket_qua.get("twitter", 0)
+                    stats_vong["finance"] += ket_qua.get("finance", 0)
 
                     tong_tat_ca["ok"]      += 1
                     tong_tat_ca["video"]   += ket_qua.get("video", 0)
+                    tong_tat_ca["shorts"]  += ket_qua.get("shorts", 0)
                     tong_tat_ca["bai"]     += ket_qua.get("bai", 0)
                     tong_tat_ca["google"]  += ket_qua.get("google", 0)
                     tong_tat_ca["maps"]    += ket_qua.get("maps", 0)
                     tong_tat_ca["reddit"]  += ket_qua.get("reddit", 0)
                     tong_tat_ca["wiki"]    += ket_qua.get("wiki", 0)
                     tong_tat_ca["twitter"] += ket_qua.get("twitter", 0)
+                    tong_tat_ca["finance"] += ket_qua.get("finance", 0)
                 else:
                     stats_vong["loi"]  += 1
                     tong_tat_ca["loi"] += 1
@@ -649,28 +678,32 @@ def main():
                         ket_qua = f.result()
                     except Exception as e:
                         ket_qua = {
-                            "ok": False, "video": 0, "bai": 0, "google": 0,
-                            "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "ly_do": str(e)[:60]
+                            "ok": False, "video": 0, "shorts": 0, "bai": 0, "google": 0,
+                            "maps": 0, "reddit": 0, "wiki": 0, "twitter": 0, "finance": 0, "ly_do": str(e)[:60]
                         }
 
                     if ket_qua and ket_qua["ok"]:
                         stats_vong["ok"]      += 1
                         stats_vong["video"]   += ket_qua.get("video", 0)
+                        stats_vong["shorts"]  += ket_qua.get("shorts", 0)
                         stats_vong["bai"]     += ket_qua.get("bai", 0)
                         stats_vong["google"]  += ket_qua.get("google", 0)
                         stats_vong["maps"]    += ket_qua.get("maps", 0)
                         stats_vong["reddit"]  += ket_qua.get("reddit", 0)
                         stats_vong["wiki"]    += ket_qua.get("wiki", 0)
                         stats_vong["twitter"] += ket_qua.get("twitter", 0)
+                        stats_vong["finance"] += ket_qua.get("finance", 0)
 
                         tong_tat_ca["ok"]      += 1
                         tong_tat_ca["video"]   += ket_qua.get("video", 0)
+                        tong_tat_ca["shorts"]  += ket_qua.get("shorts", 0)
                         tong_tat_ca["bai"]     += ket_qua.get("bai", 0)
                         tong_tat_ca["google"]  += ket_qua.get("google", 0)
                         tong_tat_ca["maps"]    += ket_qua.get("maps", 0)
                         tong_tat_ca["reddit"]  += ket_qua.get("reddit", 0)
                         tong_tat_ca["wiki"]    += ket_qua.get("wiki", 0)
                         tong_tat_ca["twitter"] += ket_qua.get("twitter", 0)
+                        tong_tat_ca["finance"] += ket_qua.get("finance", 0)
                     else:
                         stats_vong["loi"]  += 1
                         tong_tat_ca["loi"] += 1
@@ -708,12 +741,16 @@ def main():
     log(f"    ✅ Tổng thành công : {tong_tat_ca['ok']} profile")
     log(f"    ❌ Tổng lỗi / bỏ  : {tong_tat_ca['loi']} profile")
     log(f"    🎬 Tổng video xem  : {tong_tat_ca['video']} video")
+    if tong_tat_ca["shorts"] > 0:
+        log(f"    📱 Tổng Shorts     : {tong_tat_ca['shorts']} shorts")
     log(f"    📰 Tổng Google News: {tong_tat_ca['bai']} bài")
     log(f"    🗺️  Tổng Maps       : {tong_tat_ca['maps']} địa điểm")
     log(f"    👽 Tổng Reddit     : {tong_tat_ca['reddit']} bài")
     log(f"    📚 Tổng Wikipedia  : {tong_tat_ca['wiki']} bài")
     log(f"    🔍 Tổng Google     : {tong_tat_ca['google']} trang")
     log(f"    🐦 Tổng Twitter    : {tong_tat_ca['twitter']} bài")
+    if tong_tat_ca["finance"] > 0:
+        log(f"    💹 Tổng Finance    : {tong_tat_ca['finance']} cổ phiếu")
     log("█" * 55)
 
 

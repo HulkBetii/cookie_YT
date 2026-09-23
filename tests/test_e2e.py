@@ -384,15 +384,17 @@ def test_trich_debug_addr_api_v2():
     addr = _trich_debug_addr(sample_v2_resp)
     assert addr == "127.0.0.1:62561", f"Expected 127.0.0.1:62561, got {addr}"
 def test_us_modules_import():
-    """Kiểm tra import thành công các module US mới (Google Maps, Reddit, Wikipedia)."""
+    """Kiểm tra import thành công các module US mới (Google Maps, Reddit, Wikipedia, Finance)."""
     from nuoi_kenh.google_maps import luot_google_maps
     from nuoi_kenh.reddit import luot_reddit
     from nuoi_kenh.wikipedia import luot_wikipedia
-    from nuoi_kenh.config import MAPS_CITIES_QUERIES, REDDIT_SUBREDDITS, WIKIPEDIA_TOPICS
+    from nuoi_kenh.google_finance import luot_google_finance
+    from nuoi_kenh.config import MAPS_CITIES_QUERIES, REDDIT_SUBREDDITS, WIKIPEDIA_TOPICS, FINANCE_TICKERS
     assert len(MAPS_CITIES_QUERIES) > 0, "MAPS_CITIES_QUERIES không được rỗng"
     assert len(REDDIT_SUBREDDITS) > 0, "REDDIT_SUBREDDITS không được rỗng"
     assert len(WIKIPEDIA_TOPICS) > 0, "WIKIPEDIA_TOPICS không được rỗng"
-    return f"Maps({len(MAPS_CITIES_QUERIES)}), Reddit({len(REDDIT_SUBREDDITS)}), Wiki({len(WIKIPEDIA_TOPICS)}) loaded ✓"
+    assert len(FINANCE_TICKERS) > 0, "FINANCE_TICKERS không được rỗng"
+    return f"Maps({len(MAPS_CITIES_QUERIES)}), Reddit({len(REDDIT_SUBREDDITS)}), Wiki({len(WIKIPEDIA_TOPICS)}), Finance({len(FINANCE_TICKERS)}) loaded ✓"
 
 
 def test_us_circadian_timezone():

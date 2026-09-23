@@ -73,6 +73,8 @@ class FarmConfigSchema(BaseModel):
     TIM_KIEM_GOOGLE: bool = True
     LUOT_TWITTER: bool = True
     SU_DUNG_GOOGLE_FINANCE: bool = True
+    SO_FINANCE_MIN: int = 1
+    SO_FINANCE_MAX: int = 2
 
     # Datasets
     DANH_SACH_TU_KHOA: List[str] = Field(default_factory=list)
@@ -81,6 +83,34 @@ class FarmConfigSchema(BaseModel):
     REDDIT_SUBREDDITS: List[str] = Field(default_factory=list)
     WIKIPEDIA_TOPICS: List[str] = Field(default_factory=list)
     FINANCE_TICKERS: List[str] = Field(default_factory=list)
+
+
+class ScheduleJobModel(BaseModel):
+    id: str
+    name: str
+    enabled: bool = True
+    profile_ids: List[str] = Field(default_factory=list)
+    schedule_type: str = "us_preset"  # us_preset, daily_time, interval
+    preset_name: Optional[str] = "us_evening"
+    time_str: Optional[str] = "20:00"
+    interval_minutes: Optional[int] = 60
+    timezone_mode: str = "US_EST"  # US_EST or LOCAL
+    loop_count: int = 1
+    last_run: str = "Never"
+    next_run: str = ""
+    created_at: str = ""
+
+
+class CreateScheduleRequest(BaseModel):
+    name: str
+    enabled: bool = True
+    profile_ids: List[str] = Field(default_factory=list)
+    schedule_type: str = "us_preset"
+    preset_name: Optional[str] = "us_evening"
+    time_str: Optional[str] = "20:00"
+    interval_minutes: Optional[int] = 60
+    timezone_mode: str = "US_EST"
+    loop_count: int = 1
 
 
 class LogMessage(BaseModel):
@@ -98,10 +128,14 @@ class SystemStatsResponse(BaseModel):
     circadian_mode: str  # SLEEP, ACTIVE, NORMAL
     circadian_multiplier: float
     active_bots_count: int
+    active_schedules_count: int = 0
     total_profiles_count: int
     total_videos_watched: int
+    total_shorts_watched: int = 0
     total_news_read: int
     total_maps_viewed: int
     total_reddit_read: int
     total_wiki_read: int
     total_search_done: int
+    total_twitter_read: int = 0
+    total_finance_viewed: int = 0

@@ -30,10 +30,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from server.log_streamer import log_streamer
 from server.task_manager import task_manager
+from server.scheduler import scheduler_engine
 from server.schemas import (
     ProfileModel, ProxyCheckRequest, ProxyCheckResponse,
     StartProfileRequest, StopProfileRequest, UpdateProfileProxyRequest,
-    FarmConfigSchema, SystemStatsResponse
+    FarmConfigSchema, SystemStatsResponse, ScheduleJobModel,
+    CreateScheduleRequest
 )
 import nuoi_kenh.config as cfg
 from nuoi_kenh.gpm_api import kiem_tra_proxy_nhanh, cap_nhat_proxy_gpm, lay_tat_ca_profiles
@@ -46,8 +48,13 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     log_streamer.set_event_loop(loop)
     register_log_hook(lambda text: log_streamer.emit(text))
+    
+    # Khởi chạy Scheduler Engine
+    scheduler_engine.start()
+    
     log("🚀 [Server] FastAPI Control Dashboard Backend đã sẵn sàng!")
     yield
+    scheduler_engine.stop()
 
 
 app = FastAPI(title="YouTube Farm Control Station API", lifespan=lifespan)
@@ -92,6 +99,7 @@ async def get_system_stats():
         pass
 
     active_count = sum(1 for b in task_manager.running_bots.values() if b["status"] == "RUNNING")
+    active_schedules = sum(1 for s in scheduler_engine.get_all() if s.get("enabled"))
 
     return SystemStatsResponse(
         gpm_connected=gpm_ok,
@@ -100,13 +108,17 @@ async def get_system_stats():
         circadian_mode=circadian["circadian_mode"],
         circadian_multiplier=circadian["circadian_multiplier"],
         active_bots_count=active_count,
+        active_schedules_count=active_schedules,
         total_profiles_count=total_profiles,
         total_videos_watched=task_manager.global_stats["total_videos"],
+        total_shorts_watched=task_manager.global_stats["total_shorts"],
         total_news_read=task_manager.global_stats["total_news"],
         total_maps_viewed=task_manager.global_stats["total_maps"],
         total_reddit_read=task_manager.global_stats["total_reddit"],
         total_wiki_read=task_manager.global_stats["total_wiki"],
-        total_search_done=task_manager.global_stats["total_search"]
+        total_search_done=task_manager.global_stats["total_search"],
+        total_twitter_read=task_manager.global_stats["total_twitter"],
+        total_finance_viewed=task_manager.global_stats["total_finance"]
     )
 
 
@@ -154,7 +166,6 @@ async def check_proxy(req: ProxyCheckRequest):
     if not proxy_str:
         return ProxyCheckResponse(ok=False, proxy="", error="Proxy string is empty")
 
-    import time
     t0 = time.time()
     ok = kiem_tra_proxy_nhanh(proxy_str, timeout=8)
     ping_ms = int((time.time() - t0) * 1000)
@@ -169,6 +180,45 @@ async def check_proxy(req: ProxyCheckRequest):
         error="" if ok else "Proxy connection timeout or dead"
     )
 
+
+# ── Scheduler Endpoints ───────────────────────────────────────────
+
+@app.get("/api/schedules", response_model=List[ScheduleJobModel])
+async def list_schedules():
+    return scheduler_engine.get_all()
+
+
+@app.post("/api/schedules", response_model=ScheduleJobModel)
+async def create_schedule(req: CreateScheduleRequest):
+    job = scheduler_engine.create(req.model_dump())
+    return job
+
+
+@app.put("/api/schedules/{job_id}/toggle", response_model=ScheduleJobModel)
+async def toggle_schedule(job_id: str):
+    job = scheduler_engine.toggle(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return job
+
+
+@app.delete("/api/schedules/{job_id}")
+async def delete_schedule(job_id: str):
+    ok = scheduler_engine.delete(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"status": "deleted", "id": job_id}
+
+
+@app.post("/api/schedules/{job_id}/run-now")
+async def run_schedule_now(job_id: str):
+    ok = scheduler_engine.run_now(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"status": "triggered", "id": job_id}
+
+
+# ── Config Endpoints ──────────────────────────────────────────────
 
 @app.get("/api/config", response_model=FarmConfigSchema)
 async def get_config():
@@ -188,6 +238,8 @@ async def get_config():
         TIM_KIEM_GOOGLE=cfg.TIM_KIEM_GOOGLE,
         LUOT_TWITTER=cfg.LUOT_TWITTER,
         SU_DUNG_GOOGLE_FINANCE=cfg.SU_DUNG_GOOGLE_FINANCE,
+        SO_FINANCE_MIN=cfg.SO_FINANCE_MIN,
+        SO_FINANCE_MAX=cfg.SO_FINANCE_MAX,
         DANH_SACH_TU_KHOA=cfg.DANH_SACH_TU_KHOA,
         GOOGLE_KEYWORDS=cfg.GOOGLE_KEYWORDS,
         MAPS_CITIES_QUERIES=cfg.MAPS_CITIES_QUERIES,
@@ -213,6 +265,8 @@ async def update_config(data: FarmConfigSchema):
     cfg.TIM_KIEM_GOOGLE = data.TIM_KIEM_GOOGLE
     cfg.LUOT_TWITTER = data.LUOT_TWITTER
     cfg.SU_DUNG_GOOGLE_FINANCE = data.SU_DUNG_GOOGLE_FINANCE
+    cfg.SO_FINANCE_MIN = data.SO_FINANCE_MIN
+    cfg.SO_FINANCE_MAX = data.SO_FINANCE_MAX
 
     if data.DANH_SACH_TU_KHOA:
         cfg.DANH_SACH_TU_KHOA = data.DANH_SACH_TU_KHOA
@@ -225,6 +279,8 @@ async def update_config(data: FarmConfigSchema):
         cfg.REDDIT_SUBREDDITS = data.REDDIT_SUBREDDITS
     if data.WIKIPEDIA_TOPICS:
         cfg.WIKIPEDIA_TOPICS = data.WIKIPEDIA_TOPICS
+    if data.FINANCE_TICKERS:
+        cfg.FINANCE_TICKERS = data.FINANCE_TICKERS
 
     log("⚙️ [UI Config] Đã lưu cấu hình mới thành công!")
     return {"status": "saved"}
@@ -237,7 +293,6 @@ async def websocket_telemetry(websocket: WebSocket):
     await log_streamer.connect(websocket)
     try:
         while True:
-            # Nhận heartbeat / ping từ client
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")

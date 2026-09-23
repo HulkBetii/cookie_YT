@@ -37,12 +37,42 @@ export interface FarmConfig {
   TIM_KIEM_GOOGLE: boolean;
   LUOT_TWITTER: boolean;
   SU_DUNG_GOOGLE_FINANCE: boolean;
+  SO_FINANCE_MIN?: number;
+  SO_FINANCE_MAX?: number;
   DANH_SACH_TU_KHOA: string[];
   GOOGLE_KEYWORDS: string[];
   MAPS_CITIES_QUERIES: string[];
   REDDIT_SUBREDDITS: string[];
   WIKIPEDIA_TOPICS: string[];
   FINANCE_TICKERS: string[];
+}
+
+export interface ScheduleJob {
+  id: string;
+  name: string;
+  enabled: boolean;
+  profile_ids: string[];
+  schedule_type: 'us_preset' | 'daily_time' | 'interval';
+  preset_name?: 'us_morning' | 'us_afternoon' | 'us_evening';
+  time_str?: string;
+  interval_minutes?: number;
+  timezone_mode: 'US_EST' | 'LOCAL';
+  loop_count: number;
+  last_run: string;
+  next_run: string;
+  created_at: string;
+}
+
+export interface CreateScheduleInput {
+  name: string;
+  enabled?: boolean;
+  profile_ids?: string[];
+  schedule_type: 'us_preset' | 'daily_time' | 'interval';
+  preset_name?: string;
+  time_str?: string;
+  interval_minutes?: number;
+  timezone_mode?: 'US_EST' | 'LOCAL';
+  loop_count?: number;
 }
 
 export interface LogMessage {
@@ -60,11 +90,15 @@ export interface SystemStats {
   circadian_mode: 'SLEEP' | 'ACTIVE' | 'NORMAL';
   circadian_multiplier: number;
   active_bots_count: number;
+  active_schedules_count?: number;
   total_profiles_count: number;
   total_videos_watched: number;
+  total_shorts_watched?: number;
   total_news_read: number;
   total_maps_viewed: number;
   total_reddit_read: number;
   total_wiki_read: number;
   total_search_done: number;
+  total_twitter_read?: number;
+  total_finance_viewed?: number;
 }

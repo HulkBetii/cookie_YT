@@ -129,6 +129,9 @@ TWITTER_KEYWORDS = [
 
 # ── Google Finance US ─────────────────────────────────────────────
 SU_DUNG_GOOGLE_FINANCE = True
+SO_FINANCE_MIN         = 1
+SO_FINANCE_MAX         = 2
+
 FINANCE_TICKERS = [
     "AAPL:NASDAQ",
     "NVDA:NASDAQ",
@@ -138,9 +141,6 @@ FINANCE_TICKERS = [
     "SPY:NYSEARCA",
     "TSLA:NASDAQ",
 ]
-
-# ── Legacy Yahoo fallback ──────────────────────────────────────────
-YAHOO_KEYWORDS = ["US Tech News", "World News", "Stock Market"]
 
 # ── Vòng lặp & Thời gian nghỉ ────────────────────────────────────
 SO_VONG_LAP         = 0     # 0 = chạy mãi; số > 0 = chạy N vòng

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Profile, ProxyCheckResult, FarmConfig, SystemStats } from '../types';
+import { Profile, ProxyCheckResult, FarmConfig, SystemStats, ScheduleJob, CreateScheduleInput } from '../types';
 
 // Dynamic API URL: when served from FastAPI it uses relative origin, otherwise defaults to localhost:8088
 const API_BASE = window.location.port === '5173' 
@@ -63,6 +63,32 @@ export const api = {
 
   updateConfig: async (config: FarmConfig) => {
     const res = await client.post('/config', config);
+    return res.data;
+  },
+
+  // ── Scheduler APIs ────────────────────────────────────────────────
+  getSchedules: async (): Promise<ScheduleJob[]> => {
+    const res = await client.get('/schedules');
+    return res.data;
+  },
+
+  createSchedule: async (data: CreateScheduleInput): Promise<ScheduleJob> => {
+    const res = await client.post('/schedules', data);
+    return res.data;
+  },
+
+  toggleSchedule: async (jobId: string): Promise<ScheduleJob> => {
+    const res = await client.put(`/schedules/${jobId}/toggle`);
+    return res.data;
+  },
+
+  deleteSchedule: async (jobId: string) => {
+    const res = await client.delete(`/schedules/${jobId}`);
+    return res.data;
+  },
+
+  runScheduleNow: async (jobId: string) => {
+    const res = await client.post(`/schedules/${jobId}/run-now`);
     return res.data;
   },
 };

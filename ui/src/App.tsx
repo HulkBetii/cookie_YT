@@ -126,6 +126,7 @@ export function App() {
           {activeTab === 'strategy' && (
             <StrategyStudioView
               initialConfig={config}
+              profiles={profiles}
               onConfigSaved={fetchData}
             />
           )}
