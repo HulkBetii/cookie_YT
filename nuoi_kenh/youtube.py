@@ -1138,7 +1138,7 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
             o_tim = _focus_search_box(driver, timeout=12)
             if o_tim:
                 if random.random() < 0.60:
-                    go_voi_autocomplete(o_tim, tk_phu)
+                    go_voi_autocomplete(driver, o_tim, tk_phu)
                 else:
                     go_co_loi_chinh_ta(o_tim, tk_phu)
                     delay(0.5, 1.5)
@@ -1159,7 +1159,7 @@ def tim_kiem_youtube(driver, tu_khoa: str) -> bool:
         hover_element(driver, o_tim)
         delay(0.2, 0.5)
         if random.random() < 0.65:
-            go_voi_autocomplete(o_tim, tu_khoa)
+            go_voi_autocomplete(driver, o_tim, tu_khoa)
         else:
             go_co_loi_chinh_ta(o_tim, tu_khoa)
             delay(0.5, 1.5)

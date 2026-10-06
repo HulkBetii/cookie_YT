@@ -4,11 +4,20 @@ CẤU HÌNH — Thị Trường US (Mỹ) & Tối Ưu Cookie Trust Score.
 File cấu hình tập trung cho toàn bộ kịch bản nuôi kênh YouTube và lướt web hệ sinh thái Google / US.
 """
 
+import os
+
+# ── Paths & Shared Database ──────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SHARED_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "shared"))
+SHARED_DB_PATH = os.path.join(SHARED_DIR, "account_pool.db")
+
 # ── GPM Login ────────────────────────────────────────────────────
 GPM_API_URL             = "http://127.0.0.1:19995"
 GPM_BROWSER_DIR         = r"C:\GPM\GPMLogin\gpm_browser"
 SO_LUONG_CHAY_SONG_SONG = 1   # 1 = tuần tự từng profile; > 1 = chạy song song N profile
 GPM_ADDITIONAL_ARGS     = "--lang=en-US,en --disable-notifications"  # Chromium flags tiếng Anh US
+REQUIRED_PROFILE_PREFIX = "sub_yt-"
+REQUIRED_PROFILE_REGEX  = r"^sub_yt-\d+$"
 
 # ── Múi giờ sinh học US ──────────────────────────────────────────
 MUI_GIO_US = "America/New_York"  # Múi giờ US để tính toán chu kỳ thức/ngủ (EST/EDT)
