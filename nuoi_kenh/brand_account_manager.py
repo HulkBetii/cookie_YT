@@ -533,11 +533,13 @@ def create_brand_account(
         log("  🚨 PHONE_VERIFY_REQUIRED: Google requested phone verification on account page.")
         return {"status": "PHONE_VERIFY_REQUIRED", "error": "Phone verification detected"}
 
-    # Step 2: Locate 'Tạo kênh mới' / 'Create a new channel' link
+    # Step 2: Locate 'Tạo kênh mới' / 'Create a new channel' or 'channel_switcher' link
     create_link = None
+    create_link_type = "direct"
     create_link_selectors = [
         "a[href*='/create_channel']",
         "ytd-channel-options-renderer a[href*='create']",
+        "a[href*='channel_switcher']",
         "a:has(yt-formatted-string)",
     ]
 
@@ -549,6 +551,11 @@ def create_brand_account(
                 txt = (c.text or "").strip().lower()
                 if "/create_channel" in href or any(k in txt for k in ("tạo kênh", "create a channel", "create channel")):
                     create_link = c
+                    create_link_type = "direct"
+                    break
+                elif "channel_switcher" in href or any(k in txt for k in ("thêm hoặc quản lý", "add or manage")):
+                    create_link = c
+                    create_link_type = "switcher"
                     break
             if create_link:
                 break
@@ -556,10 +563,10 @@ def create_brand_account(
             continue
 
     if not create_link:
-        log("  ❌ Could not locate 'Create channel' link on /account page.")
+        log("  ❌ Could not locate 'Create channel' or 'Manage channels' link on /account page.")
         return {"status": "FAILED", "error": "Create channel link not found"}
 
-    log("  🖱️ Triggering create channel dialog...")
+    log(f"  🖱️ Triggering create channel ({create_link_type})...")
     try:
         driver.execute_script("arguments[0].click();", create_link)
     except Exception:
@@ -568,7 +575,24 @@ def create_brand_account(
         except Exception:
             create_link.click()
 
-    time.sleep(random.uniform(1.0, 2.0))
+    if create_link_type == "switcher":
+        time.sleep(random.uniform(4.0, 6.0))
+        # On switcher page, try clicking Create Channel card if present
+        try:
+            driver.execute_script("""
+                for (let el of document.querySelectorAll('a, button, ytd-button-renderer, paper-item, ytd-account-item-renderer')) {
+                    let txt = (el.innerText || '').trim().toLowerCase();
+                    let href = el.getAttribute('href') || (el.querySelector('a') ? el.querySelector('a').href : '');
+                    if (txt.includes('tạo kênh') || txt.includes('create a channel') || href.includes('create_channel')) {
+                        el.click();
+                        break;
+                    }
+                }
+            """)
+        except Exception:
+            pass
+
+    time.sleep(random.uniform(1.5, 2.5))
 
     # Step 3: Open dialog explicitly via Polymer API
     driver.execute_script("""
@@ -807,6 +831,26 @@ def switch_to_brand_account(driver: webdriver.Chrome, target_name: str) -> bool:
     time.sleep(random.uniform(3.0, 5.0))
 
     try:
+        # Check if redirected to /account
+        try:
+            cur_url = driver.current_url or ""
+            if "channel_switcher" not in cur_url and "account" in cur_url:
+                log("  ℹ️ Redirected to /account, clicking 'channel_switcher' link...")
+                driver.execute_script("""
+                    let switcher = document.querySelector("a[href*='channel_switcher']");
+                    if (switcher) { switcher.click(); return; }
+                    for (let a of document.querySelectorAll('a')) {
+                        let txt = (a.innerText || '').trim().toLowerCase();
+                        if (txt.includes('thêm hoặc quản lý') || txt.includes('add or manage')) {
+                            a.click();
+                            return;
+                        }
+                    }
+                """)
+                time.sleep(random.uniform(4.0, 6.0))
+        except Exception:
+            pass
+
         # 1. Standard CSS selectors
         selectors = [
             "ytd-account-item-renderer",
@@ -818,14 +862,17 @@ def switch_to_brand_account(driver: webdriver.Chrome, target_name: str) -> bool:
         ]
         matched_elem = None
         for sel in selectors:
-            items = driver.find_elements(By.CSS_SELECTOR, sel)
-            for it in items:
-                txt = it.text.strip()
-                if target_name and target_name.lower() in txt.lower():
-                    matched_elem = it
+            try:
+                items = driver.find_elements(By.CSS_SELECTOR, sel)
+                for it in items:
+                    txt = (it.text or "").strip()
+                    if target_name and target_name.lower() in txt.lower():
+                        matched_elem = it
+                        break
+                if matched_elem:
                     break
-            if matched_elem:
-                break
+            except Exception:
+                continue
 
         # 2. Fallback: JavaScript DOM search
         if not matched_elem:

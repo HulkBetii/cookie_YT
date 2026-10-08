@@ -17,7 +17,7 @@ from urllib3.exceptions import (
 from urllib3.util.timeout import Timeout
 
 
-DEFAULT_COMMAND_TIMEOUT = 15
+DEFAULT_COMMAND_TIMEOUT = 45
 PAGE_LOAD_TIMEOUT_GRACE = 10
 _DRIVER_UNHEALTHY_ATTR = "_nuoi_kenh_unhealthy"
 _DRIVER_FAILURE_ATTR = "_nuoi_kenh_failure"

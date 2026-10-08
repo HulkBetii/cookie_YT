@@ -357,6 +357,7 @@ def mo_profile_gpm(
 
     options = ChromeOptions()
     options.debugger_address = remote_addr
+    options.page_load_strategy = "eager"
     service = ChromeService(executable_path=driver_path, log_output=os.devnull)
 
     try:

@@ -224,6 +224,8 @@ def test_create_brand_account_success(mock_sleep, mock_type, mock_click, mock_ge
 
     create_btn = MagicMock()
     create_btn.is_displayed.return_value = True
+    create_btn.get_attribute.return_value = "/create_channel"
+    create_btn.text = "Tạo kênh"
     name_input = MagicMock()
     name_input.is_displayed.return_value = True
     name_input.is_enabled.return_value = True
